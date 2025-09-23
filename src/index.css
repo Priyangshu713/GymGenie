@@ -193,6 +193,53 @@
     background: rgba(31, 41, 55, 0.8) !important;
     border: 1px solid rgba(75, 85, 99, 0.3);
   }
+
+  /* Clean Apple-like AI Analysis Button */
+  .ai-analysis-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    background: rgba(0, 122, 255, 0.1);
+    border: 1px solid rgba(0, 122, 255, 0.2);
+    border-radius: 12px;
+    color: #007AFF;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ai-analysis-button:hover:not(:disabled) {
+    background: rgba(0, 122, 255, 0.15);
+    border-color: rgba(0, 122, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.15);
+  }
+
+  .ai-analysis-button:active:not(:disabled) {
+    transform: translateY(0);
+    background: rgba(0, 122, 255, 0.2);
+  }
+
+  .ai-analysis-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .ai-analysis-button svg {
+    transition: transform 0.2s ease;
+  }
+
+  .ai-analysis-button:hover:not(:disabled) svg {
+    transform: scale(1.1);
+  }
   
   .fitness-button {
     background: #007AFF;
