@@ -242,9 +242,19 @@ const Profile = () => {
       .replace(/\*(.*?)\*/g, '<em class="text-blue-300 italic">$1</em>')
       // Convert section headers with emojis
       .replace(/^(🔥|💀|⚖️|🕐|📊|🎯|💡|🚨)\s*(.*?):/gm, '<div class="mt-6 mb-3"><span class="text-2xl mr-2">$1</span><span class="text-yellow-400 font-bold text-lg">$2:</span></div>')
+      // Format workout days (Week 1: **Monday: REST, etc.)
+      .replace(/^(\*\*Week\s+\d+:\*\*)\s*(.*?)$/gm, '<div class="mt-4 mb-3 p-3 bg-gray-800 rounded-lg"><div class="text-purple-400 font-bold mb-2">$1</div><div class="text-gray-300">$2</div></div>')
+      // Format individual days within workout plans
+      .replace(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday):\s*(.*?)$/gm, '<div class="mb-2 p-2 bg-gray-700 rounded"><span class="text-blue-400 font-semibold">$1:</span> <span class="text-gray-200">$2</span></div>')
+      // Format exercise descriptions (e.g., "Bicep curls 3 sets of 8-12 reps")
+      .replace(/([A-Za-z\s]+)\s+(\d+\s+sets?\s+of\s+\d+-?\d*\s+reps?)/gm, '<div class="ml-2 mb-1"><span class="text-green-400">$1</span> <span class="text-gray-400 text-sm">$2</span></div>')
       // Convert bullet points
       .replace(/^-\s*(.*?)$/gm, '<div class="ml-4 mb-2 flex items-start"><span class="text-blue-400 mr-2">•</span><span>$1</span></div>')
-      // Convert line breaks
+      // Format REST days
+      .replace(/\bREST\b/g, '<span class="bg-orange-600 text-white px-2 py-1 rounded text-xs font-bold">REST</span>')
+      // Format muscle groups in parentheses
+      .replace(/\(([^)]+)\)/g, '<span class="text-gray-400 text-sm">($1)</span>')
+      // Convert line breaks - do this before other formatting
       .replace(/\n\n/g, '<br><br>')
       .replace(/\n/g, '<br>')
       // Highlight ratings like "4/10"
@@ -253,6 +263,8 @@ const Profile = () => {
       .replace(/(MAJOR PROBLEMS|RED FLAGS|SPECIFIC IMPROVEMENTS)/g, '<span class="bg-red-900 text-red-200 px-2 py-1 rounded font-semibold">$1</span>')
       .replace(/(EXCELLENT|GOOD|PERFECT)/gi, '<span class="bg-green-900 text-green-200 px-2 py-1 rounded font-semibold">$1</span>')
       .replace(/(WARNING|CAUTION|AVOID)/gi, '<span class="bg-yellow-900 text-yellow-200 px-2 py-1 rounded font-semibold">$1</span>')
+      // Format notes and tips
+      .replace(/\*\*Note:\*\*(.*?)$/gm, '<div class="mt-3 p-2 bg-blue-900 bg-opacity-30 border-l-4 border-blue-400 rounded"><span class="text-blue-400 font-semibold">Note:</span><span class="text-gray-300">$1</span></div>')
   }
 
   // AI Split Analysis Function

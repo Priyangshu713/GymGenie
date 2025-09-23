@@ -397,7 +397,7 @@ Give a harsh but fair rating and explain why.
 💡 SPECIFIC IMPROVEMENTS:
 - Exact changes needed (be specific)
 - Alternative split suggestions
-- Exercise selection recommendations
+- Exercise selection recommendations  
 - Timing and frequency adjustments
 
 🚨 RED FLAGS:
@@ -405,9 +405,30 @@ Give a harsh but fair rating and explain why.
 - Unsustainable elements
 - Common mistakes being made
 
-Be direct, scientific, and don't hold back. If the split sucks, say it sucks and explain exactly why. If it's good, explain what makes it effective. Use fitness science, anatomy, and real-world training experience.
+**WEEKLY PLAN RECOMMENDATION:**
+If you recommend changes, provide a sample week showing the improved split:
 
-Format your response with clear sections using emojis and be conversational but authoritative.`
+**Week 1:**
+Monday: [Workout type] - [Target muscles and key exercises]
+Tuesday: [Workout type] - [Target muscles and key exercises]  
+Wednesday: REST
+Thursday: [Workout type] - [Target muscles and key exercises]
+Friday: [Workout type] - [Target muscles and key exercises]
+Saturday: [Workout type or REST]
+Sunday: REST
+
+**Note:** [Any important notes about progression, intensity, or modifications]
+
+FORMATTING GUIDELINES:
+- Use clear section headers with emojis
+- Put workout days on separate lines
+- Use **bold** for emphasis on important points
+- Use - for bullet points
+- Keep paragraphs concise and readable
+- Be direct, scientific, and don't hold back
+- If the split sucks, say it sucks and explain exactly why
+- If it's good, explain what makes it effective
+- Use fitness science, anatomy, and real-world training experience`
 }
 
 export const setGeminiApiKey = (apiKey) => {

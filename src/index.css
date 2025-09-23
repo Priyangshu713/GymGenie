@@ -61,6 +61,33 @@
     margin-bottom: 0.5rem;
   }
   
+  /* Enhanced workout plan formatting */
+  .formatted-analysis .workout-day {
+    background: rgba(55, 65, 81, 0.8);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-left: 3px solid #3B82F6;
+  }
+  
+  .formatted-analysis .exercise-item {
+    background: rgba(31, 41, 55, 0.6);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: 2px 0 2px 16px;
+    font-size: 14px;
+  }
+  
+  .formatted-analysis .rest-day {
+    background: rgba(234, 88, 12, 0.2);
+    border: 1px solid rgba(234, 88, 12, 0.4);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  
   .fitness-button {
     background: #007AFF;
     color: white;
