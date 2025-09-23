@@ -181,18 +181,18 @@ const AIInsights = () => {
 
             {/* Areas for Improvement */}
             {insights.improvements && insights.improvements.length > 0 && (
-              <div className="card">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                  <AlertTriangle size={20} className="mr-2 text-yellow-600" />
+              <div className="fitness-card">
+                <h3 className="font-semibold text-white mb-4 flex items-center">
+                  <AlertTriangle size={20} className="mr-2 text-yellow-400" />
                   Areas for Improvement
                 </h3>
                 <div className="space-y-3">
                   {insights.improvements.map((improvement, index) => (
-                    <div key={index} className="flex items-start space-x-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                    <div key={index} className="flex items-start space-x-3 p-3 bg-gray-800 rounded-xl">
                       <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-white text-xs font-bold">!</span>
                       </div>
-                      <p className="text-yellow-800 dark:text-yellow-200 text-sm">
+                      <p className="text-yellow-400 text-sm">
                         {improvement}
                       </p>
                     </div>
@@ -203,18 +203,18 @@ const AIInsights = () => {
 
             {/* Recommendations */}
             {insights.recommendations && insights.recommendations.length > 0 && (
-              <div className="card">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                  <Lightbulb size={20} className="mr-2 text-blue-600" />
+              <div className="fitness-card">
+                <h3 className="font-semibold text-white mb-4 flex items-center">
+                  <Lightbulb size={20} className="mr-2 text-blue-400" />
                   Recommendations
                 </h3>
                 <div className="space-y-3">
                   {insights.recommendations.map((recommendation, index) => (
-                    <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div key={index} className="flex items-start space-x-3 p-3 bg-gray-800 rounded-xl">
                       <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Lightbulb size={12} className="text-white" />
                       </div>
-                      <p className="text-blue-800 dark:text-blue-200 text-sm">
+                      <p className="text-blue-400 text-sm">
                         {recommendation}
                       </p>
                     </div>
@@ -225,18 +225,18 @@ const AIInsights = () => {
 
             {/* Goals */}
             {insights.goals && insights.goals.length > 0 && (
-              <div className="card">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                  <Target size={20} className="mr-2 text-purple-600" />
+              <div className="fitness-card">
+                <h3 className="font-semibold text-white mb-4 flex items-center">
+                  <Target size={20} className="mr-2 text-purple-400" />
                   Suggested Goals
                 </h3>
                 <div className="space-y-3">
                   {insights.goals.map((goal, index) => (
-                    <div key={index} className="flex items-start space-x-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                    <div key={index} className="flex items-start space-x-3 p-3 bg-gray-800 rounded-xl">
                       <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Target size={12} className="text-white" />
                       </div>
-                      <p className="text-purple-800 dark:text-purple-200 text-sm">
+                      <p className="text-purple-400 text-sm">
                         {goal}
                       </p>
                     </div>
@@ -247,13 +247,13 @@ const AIInsights = () => {
 
             {/* Weekly Plan */}
             {insights.weeklyPlan && (
-              <div className="card">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                  <Activity size={20} className="mr-2 text-indigo-600" />
+              <div className="fitness-card">
+                <h3 className="font-semibold text-white mb-4 flex items-center">
+                  <Activity size={20} className="mr-2 text-indigo-400" />
                   This Week's Focus
                 </h3>
-                <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                  <p className="text-indigo-800 dark:text-indigo-200 text-sm leading-relaxed">
+                <div className="p-4 bg-gray-800 rounded-xl">
+                  <p className="text-indigo-400 text-sm leading-relaxed">
                     {insights.weeklyPlan}
                   </p>
                 </div>
@@ -261,7 +261,7 @@ const AIInsights = () => {
             )}
 
             {/* Analysis Timestamp */}
-            <div className="text-center text-xs text-gray-500 dark:text-gray-400">
+            <div className="text-center text-xs text-gray-400">
               Analysis generated on {format(new Date(), 'MMM d, yyyy \'at\' h:mm a')}
             </div>
           </>
