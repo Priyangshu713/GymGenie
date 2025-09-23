@@ -1326,17 +1326,25 @@ const Profile = () => {
               <button
                 onClick={handleAnalyzeSplit}
                 disabled={isAnalyzingSplit || workoutSplit.type === 'none'}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-all duration-200 flex items-center active:scale-95 text-sm"
-                style={{ display: workoutSplit.type === 'none' ? 'none' : 'flex' }}
+                className="px-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-900 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 flex items-center active:scale-95 text-sm border border-gray-700 hover:border-gray-600 backdrop-blur-sm"
+                style={{ 
+                  display: workoutSplit.type === 'none' ? 'none' : 'flex',
+                  background: 'rgba(55, 65, 81, 0.8)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)'
+                }}
               >
                 {isAnalyzingSplit ? (
                   <>
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
-                    Analyzing...
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-400 mr-2"></div>
+                    <span className="text-gray-300">Analyzing...</span>
                   </>
                 ) : (
                   <>
-                    🤖 AI Analysis
+                    <div className="w-4 h-4 mr-2 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                    </div>
+                    <span className="text-blue-400 font-medium">AI Insights</span>
                   </>
                 )}
               </button>

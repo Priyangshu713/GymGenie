@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 
 // Initialize Gemini AI
 let genAI = null
@@ -56,20 +56,17 @@ const getSplitByType = (splitType) => {
     }
   }
   
-  return popularSplits[splitType]
+  return popularSplits[splitType] || null
 }
 
 const initializeAI = () => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('gemini-api-key')
-  if (!apiKey) {
-    throw new Error('Gemini API key not found. Please add VITE_GEMINI_API_KEY to your environment variables or set it in the app settings.')
+  const apiKey = getGeminiApiKey()
+  if (apiKey && !genAI) {
+    genAI = new GoogleGenAI({
+      apiKey: apiKey
+    })
   }
-  
-  if (!genAI) {
-    genAI = new GoogleGenerativeAI(apiKey)
-  }
-  
-  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  return genAI
 }
 
 export const generateWorkoutInsights = async (workoutData) => {
@@ -79,17 +76,54 @@ export const generateWorkoutInsights = async (workoutData) => {
       throw new Error('No workout data available for analysis')
     }
 
-    const model = initializeAI()
+    const ai = initializeAI()
+    if (!ai) {
+      throw new Error('AI not initialized')
+    }
+    
+    // Configure tools with Google Search for scientific accuracy
+    const tools = [
+      {
+        googleSearch: {}
+      }
+    ]
+    
+    const config = {
+      thinkingConfig: {
+        thinkingBudget: -1
+      },
+      tools
+    }
     
     // Prepare workout data for analysis
     const analysisPrompt = createAnalysisPrompt(workoutData)
     
-    const result = await model.generateContent(analysisPrompt)
-    const response = await result.response
-    const text = response.text()
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: analysisPrompt
+          }
+        ]
+      }
+    ]
+    
+    const response = await ai.models.generateContentStream({
+      model: 'gemini-2.5-flash',
+      config,
+      contents
+    })
+    
+    let fullText = ''
+    for await (const chunk of response) {
+      if (chunk.text) {
+        fullText += chunk.text
+      }
+    }
     
     // Parse the AI response into structured insights
-    return parseInsightsResponse(text)
+    return parseInsightsResponse(fullText)
   } catch (error) {
     console.error('Error generating workout insights:', error)
     
@@ -264,19 +298,56 @@ const parseInsightsResponse = (aiResponse) => {
 export const analyzeSplit = async (splitData, userGoals = 'muscle_growth') => {
   try {
     // Initialize AI if not already done
-    const model = initializeAI()
+    const ai = initializeAI()
+    if (!ai) {
+      throw new Error('AI not initialized. Please check your API key.')
+    }
     
     // Validate split data
     if (!splitData || splitData.type === 'none') {
       throw new Error('No workout split selected for analysis')
     }
     
+    // Configure tools with Google Search for scientific accuracy
+    const tools = [
+      {
+        googleSearch: {}
+      }
+    ]
+    
+    const config = {
+      thinkingConfig: {
+        thinkingBudget: -1
+      },
+      tools
+    }
+    
     // Create comprehensive split analysis prompt
     const prompt = createSplitAnalysisPrompt(splitData, userGoals)
     
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    const analysis = response.text()
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: prompt
+          }
+        ]
+      }
+    ]
+    
+    const response = await ai.models.generateContentStream({
+      model: 'gemini-2.5-flash',
+      config,
+      contents
+    })
+    
+    let analysis = ''
+    for await (const chunk of response) {
+      if (chunk.text) {
+        analysis += chunk.text
+      }
+    }
     
     return {
       success: true,
@@ -285,6 +356,16 @@ export const analyzeSplit = async (splitData, userGoals = 'muscle_growth') => {
     }
   } catch (error) {
     console.error('Error analyzing split:', error)
+    
+    // Provide a fallback analysis if AI is not available
+    if (error.message.includes('AI not initialized')) {
+      return {
+        success: false,
+        error: 'AI analysis is not available. Please set up your Gemini API key in the settings to get detailed workout split analysis.',
+        fallbackAnalysis: 'To get AI-powered split analysis, please configure your Gemini API key in the app settings. This will enable detailed scientific analysis of your workout split including muscle balance, recovery patterns, and personalized recommendations.'
+      }
+    }
+    
     return {
       success: false,
       error: error.message || 'Failed to analyze workout split'
@@ -343,7 +424,9 @@ Description: ${customSplit.description || 'No description provided'}
     }
   })
 
-  return `You are a brutally honest, world-class fitness expert and exercise scientist. Analyze this workout split with complete honesty - don't sugarcoat anything. Point out every flaw, imbalance, and potential issue.
+  return `You are a world-class exercise scientist and certified strength & conditioning specialist with expertise in evidence-based training methodologies. Use Google Search to reference current scientific literature, peer-reviewed studies, and established training principles when analyzing this workout split.
+
+IMPORTANT: Base your analysis on scientific evidence and established training principles. Popular splits like Push/Pull/Legs (PPL), Upper/Lower, and Full Body have extensive research backing their effectiveness.
 
 WORKOUT SPLIT TO ANALYZE:
 ${splitInfo}
@@ -358,52 +441,51 @@ SPLIT METRICS:
 
 USER GOAL: ${userGoals}
 
-PROVIDE A BRUTALLY HONEST ANALYSIS covering:
+SEARCH AND REFERENCE: Before providing your analysis, search for recent scientific literature on:
+1. Optimal training frequency for muscle hypertrophy
+2. Evidence on Push/Pull/Legs vs other split effectiveness
+3. Recovery requirements between muscle groups
+4. Volume recommendations for different training splits
+
+PROVIDE A SCIENCE-BASED ANALYSIS covering:
 
 🔥 OVERALL RATING (1-10/10):
-Give a harsh but fair rating and explain why.
+Rate based on scientific evidence and established training principles. Consider that well-designed splits like PPL typically rate 7-9/10 based on research.
 
-💀 MAJOR PROBLEMS:
-- What's fundamentally wrong with this split?
-- Which muscle groups are neglected or overtrained?
-- Are there recovery issues?
-- Volume distribution problems?
-- Any anatomical/biomechanical issues?
+📚 SCIENTIFIC EVIDENCE:
+Reference specific studies and research findings that support your analysis. Cite training frequency research, volume studies, and split comparison data.
 
 ⚖️ MUSCLE BALANCE ANALYSIS:
-- Push vs Pull ratio
-- Upper vs Lower body balance  
-- Anterior vs Posterior chain
-- Left vs Right side considerations
-- Core and stabilizer inclusion
+Based on research showing optimal push:pull ratios and movement pattern balance:
+- Push vs Pull ratio (research shows 1:1 or 1:1.2 ratio is optimal)
+- Upper vs Lower body balance (research on training distribution)
+- Anterior vs Posterior chain balance
+- Muscle group frequency (2-3x per week optimal per research)
 
 🕐 RECOVERY & FREQUENCY:
-- Is recovery time adequate between sessions?
-- Muscle group frequency (optimal is 2-3x/week for most)
-- Potential overtraining risks
+Based on muscle protein synthesis and recovery research:
+- Recovery time between sessions (48-72 hours for same muscle groups)
+- Training frequency research (Schoenfeld et al. studies on frequency)
+- Volume distribution across the week
 - CNS fatigue considerations
 
 📊 VOLUME & INTENSITY:
-- Is the weekly volume appropriate?
-- Training density issues
-- Potential for progressive overload
-- Periodization concerns
+Reference volume landmark studies and training guidelines:
+- Weekly volume recommendations (10-20 sets per muscle group per week)
+- Training density and session length
+- Progressive overload principles
+- Periodization research
 
 🎯 GOAL ALIGNMENT:
-- Does this split match the user's goals?
-- Better alternatives for their objectives
-- Efficiency rating
+- Evidence-based split selection for different goals
+- Research on split effectiveness for hypertrophy vs strength
+- Time efficiency based on training studies
 
-💡 SPECIFIC IMPROVEMENTS:
-- Exact changes needed (be specific)
-- Alternative split suggestions
-- Exercise selection recommendations  
-- Timing and frequency adjustments
-
-🚨 RED FLAGS:
-- Injury risks
-- Unsustainable elements
-- Common mistakes being made
+💡 EVIDENCE-BASED IMPROVEMENTS:
+- Specific recommendations backed by research
+- Alternative splits with scientific support
+- Exercise selection based on biomechanics research
+- Frequency and timing adjustments supported by studies
 
 **WEEKLY PLAN RECOMMENDATION:**
 If you recommend changes, provide a sample week showing the improved split:

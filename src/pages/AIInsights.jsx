@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { generateWorkoutInsights } from '../services/aiService'
+import { formatAIText, formatWorkoutPlan } from '../utils/textFormatter'
 
 const AIInsights = () => {
   const { workouts, stats } = useWorkout()
@@ -81,7 +82,7 @@ const AIInsights = () => {
   }
 
   return (
-    <div className="pb-36 bg-black min-h-screen">
+    <div className="pb-36 bg-black min-h-screen ai-insights">
       {/* Apple Fitness Header */}
       <div className="px-4 pt-12 pb-6 border-b border-gray-800">
         <div className="flex items-center justify-between mb-6">
@@ -150,9 +151,10 @@ const AIInsights = () => {
                   <h3 className="font-semibold text-green-400 mb-2">
                     Overall Assessment
                   </h3>
-                  <p className="text-green-300 text-sm leading-relaxed">
-                    {insights.overall}
-                  </p>
+                  <div 
+                    className="text-green-300 text-sm leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: formatAIText(insights.overall) }}
+                  />
                 </div>
               </div>
             </div>
@@ -170,9 +172,10 @@ const AIInsights = () => {
                       <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-white text-xs font-bold">✓</span>
                       </div>
-                      <p className="text-green-400 text-sm">
-                        {strength}
-                      </p>
+                      <div 
+                        className="text-green-400 text-sm"
+                        dangerouslySetInnerHTML={{ __html: formatAIText(strength) }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -192,9 +195,10 @@ const AIInsights = () => {
                       <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-white text-xs font-bold">!</span>
                       </div>
-                      <p className="text-yellow-400 text-sm">
-                        {improvement}
-                      </p>
+                      <div 
+                        className="text-yellow-400 text-sm"
+                        dangerouslySetInnerHTML={{ __html: formatAIText(improvement) }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -214,9 +218,10 @@ const AIInsights = () => {
                       <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Lightbulb size={12} className="text-white" />
                       </div>
-                      <p className="text-blue-400 text-sm">
-                        {recommendation}
-                      </p>
+                      <div 
+                        className="text-blue-400 text-sm"
+                        dangerouslySetInnerHTML={{ __html: formatAIText(recommendation) }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -236,9 +241,10 @@ const AIInsights = () => {
                       <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Target size={12} className="text-white" />
                       </div>
-                      <p className="text-purple-400 text-sm">
-                        {goal}
-                      </p>
+                      <div 
+                        className="text-purple-400 text-sm"
+                        dangerouslySetInnerHTML={{ __html: formatAIText(goal) }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -253,9 +259,10 @@ const AIInsights = () => {
                   This Week's Focus
                 </h3>
                 <div className="p-4 bg-gray-800 rounded-xl">
-                  <p className="text-indigo-400 text-sm leading-relaxed">
-                    {insights.weeklyPlan}
-                  </p>
+                  <div 
+                    className="text-indigo-400 text-sm leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: formatWorkoutPlan(insights.weeklyPlan) }}
+                  />
                 </div>
               </div>
             )}
