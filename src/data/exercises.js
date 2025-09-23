@@ -111,15 +111,15 @@ export const exerciseDatabase = {
     'Machine Shrugs'
   ],
   
-  arms: [
-    // Biceps - Barbell
+  biceps: [
+    // Barbell
     'Barbell Curls',
     'EZ-Bar Curls',
     'Preacher Curls',
     'Close-Grip EZ-Bar Curls',
     '21s (Barbell Curls)',
     
-    // Biceps - Dumbbell
+    // Dumbbell
     'Dumbbell Curls',
     'Alternating Dumbbell Curls',
     'Hammer Curls',
@@ -128,33 +128,68 @@ export const exerciseDatabase = {
     'Seated Dumbbell Curls',
     'Zottman Curls',
     
-    // Biceps - Cable
+    // Cable
     'Cable Curls',
     'Cable Hammer Curls',
     'Cable Preacher Curls',
     'High Cable Curls',
     
-    // Triceps - Barbell
+    // Machine
+    'Machine Curls',
+    'Preacher Curl Machine'
+  ],
+
+  triceps: [
+    // Barbell
     'Close-Grip Bench Press',
     'Skull Crushers',
     'Overhead Tricep Extension',
     
-    // Triceps - Dumbbell
+    // Dumbbell
     'Dumbbell Tricep Extensions',
     'Overhead Dumbbell Extension',
     'Dumbbell Kickbacks',
     'Single-Arm Tricep Extensions',
     
-    // Triceps - Cable
+    // Cable
     'Cable Tricep Pushdowns',
     'Rope Pushdowns',
     'Overhead Cable Extensions',
     'Single-Arm Cable Extensions',
     
-    // Triceps - Bodyweight
+    // Bodyweight
     'Tricep Dips',
     'Bench Dips',
-    'Diamond Push-ups'
+    'Diamond Push-ups',
+    
+    // Machine
+    'Tricep Press Machine',
+    'Assisted Dip Machine'
+  ],
+
+  forearms: [
+    // Wrist Curls
+    'Barbell Wrist Curls',
+    'Dumbbell Wrist Curls',
+    'Reverse Wrist Curls',
+    'Behind-the-Back Wrist Curls',
+    
+    // Grip Strength
+    'Farmer\'s Walk',
+    'Plate Pinches',
+    'Grip Crushers',
+    'Dead Hangs',
+    
+    // Reverse Curls
+    'Reverse Barbell Curls',
+    'Reverse EZ-Bar Curls',
+    'Reverse Dumbbell Curls',
+    'Cable Reverse Curls',
+    
+    // Hammer Grip
+    'Hammer Curls',
+    'Cable Hammer Curls',
+    'Rope Hammer Curls'
   ],
   
   legs: [

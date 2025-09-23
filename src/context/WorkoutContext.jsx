@@ -38,13 +38,29 @@ export const EXERCISE_DATABASE = {
       { name: 'Arnold Press', equipment: 'dumbbell' },
       { name: 'Face Pulls', equipment: 'cable' }
     ],
-    arms: [
+    biceps: [
       { name: 'Bicep Curls', equipment: 'dumbbell' },
-      { name: 'Tricep Dips', equipment: 'bodyweight' },
       { name: 'Hammer Curls', equipment: 'dumbbell' },
-      { name: 'Tricep Extensions', equipment: 'dumbbell' },
       { name: 'Preacher Curls', equipment: 'barbell' },
-      { name: 'Close-grip Bench Press', equipment: 'barbell' }
+      { name: 'Cable Curls', equipment: 'cable' },
+      { name: 'Concentration Curls', equipment: 'dumbbell' },
+      { name: 'EZ-Bar Curls', equipment: 'barbell' }
+    ],
+    triceps: [
+      { name: 'Tricep Dips', equipment: 'bodyweight' },
+      { name: 'Tricep Extensions', equipment: 'dumbbell' },
+      { name: 'Close-grip Bench Press', equipment: 'barbell' },
+      { name: 'Tricep Pushdowns', equipment: 'cable' },
+      { name: 'Skull Crushers', equipment: 'barbell' },
+      { name: 'Diamond Push-ups', equipment: 'bodyweight' }
+    ],
+    forearms: [
+      { name: 'Wrist Curls', equipment: 'dumbbell' },
+      { name: 'Reverse Curls', equipment: 'barbell' },
+      { name: 'Farmer\'s Walk', equipment: 'dumbbell' },
+      { name: 'Plate Pinches', equipment: 'plate' },
+      { name: 'Dead Hangs', equipment: 'bodyweight' },
+      { name: 'Grip Crushers', equipment: 'grip' }
     ],
     core: [
       { name: 'Plank', equipment: 'bodyweight' },
@@ -65,6 +81,30 @@ export const EXERCISE_DATABASE = {
     { name: 'Walking', unit: 'minutes' },
     { name: 'HIIT', unit: 'minutes' }
   ]
+}
+
+// Data migration function to handle old "arms" muscle group
+const migrateWorkoutData = (workouts) => {
+  return workouts.map(workout => ({
+    ...workout,
+    exercises: workout.exercises.map(exercise => {
+      if (exercise.muscleGroup === 'arms') {
+        // Migrate based on exercise name to determine specific muscle group
+        const exerciseName = exercise.name.toLowerCase()
+        if (exerciseName.includes('bicep') || exerciseName.includes('curl') || exerciseName.includes('chin')) {
+          return { ...exercise, muscleGroup: 'biceps' }
+        } else if (exerciseName.includes('tricep') || exerciseName.includes('dip') || exerciseName.includes('extension') || exerciseName.includes('pushdown')) {
+          return { ...exercise, muscleGroup: 'triceps' }
+        } else if (exerciseName.includes('wrist') || exerciseName.includes('forearm') || exerciseName.includes('grip') || exerciseName.includes('farmer')) {
+          return { ...exercise, muscleGroup: 'forearms' }
+        } else {
+          // Default to biceps if we can't determine
+          return { ...exercise, muscleGroup: 'biceps' }
+        }
+      }
+      return exercise
+    })
+  }))
 }
 
 const initialState = {
@@ -239,8 +279,11 @@ export function WorkoutProvider({ children }) {
         const parsedData = JSON.parse(savedData)
         // Ensure we have valid data structure
         if (parsedData && typeof parsedData === 'object') {
+          // Migrate old "arms" muscle group data
+          const migratedWorkouts = parsedData.workouts ? migrateWorkoutData(parsedData.workouts) : []
+          
           dispatch({ type: 'LOAD_DATA', payload: {
-            workouts: parsedData.workouts || [],
+            workouts: migratedWorkouts,
             currentWorkout: parsedData.currentWorkout || null,
             goals: parsedData.goals || [],
             stats: parsedData.stats || initialState.stats
