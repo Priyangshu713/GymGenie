@@ -72,7 +72,7 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
           charts: ['chart.js', 'react-chartjs-2'],
-          ai: ['@google/generative-ai'],
+          ai: ['@google/genai'],
           utils: ['date-fns', 'uuid', 'lucide-react']
         }
       }
@@ -91,7 +91,7 @@ export default defineConfig({
       'chart.js',
       'react-chartjs-2',
       'lucide-react',
-      '@google/generative-ai'
+      '@google/genai'
     ]
   },
   // Preview configuration for Vercel

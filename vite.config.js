@@ -44,7 +44,7 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
           charts: ['chart.js', 'react-chartjs-2'],
-          ai: ['@google/generative-ai'],
+          ai: ['@google/genai'],
           utils: ['date-fns', 'uuid', 'lucide-react']
         }
       }
