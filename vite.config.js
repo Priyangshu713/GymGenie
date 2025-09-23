@@ -2,42 +2,52 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
       },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'GymGenie - Fitness Tracker',
+        name: 'GymGenie - AI Fitness Tracker',
         short_name: 'GymGenie',
         description: 'Mobile-focused gym and bodybuilding activity tracker with AI insights',
-        theme_color: '#1f2937',
-        background_color: '#ffffff',
+        theme_color: '#667eea',
+        background_color: '#1f2937',
         display: 'standalone',
-        orientation: 'portrait',
-        scope: '/',
+        orientation: 'portrait-primary',
         start_url: '/',
         icons: [
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
+            src: '/favicon.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
           }
         ]
       }
     })
   ],
   server: {
-    port: 3000,
-    host: true
+    host: true,
+    port: 3000
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          charts: ['chart.js', 'react-chartjs-2'],
+          ai: ['@google/generative-ai'],
+          utils: ['date-fns', 'uuid', 'lucide-react']
+        }
+      }
+    }
   }
 })
