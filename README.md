@@ -161,26 +161,82 @@ The app uses Tailwind CSS. Modify `tailwind.config.js` for theme changes or edit
 3. Verify the API key is correctly set in Profile settings
 
 ### Charts Not Displaying
-1. Make sure you have workout data logged
-2. Check the selected time range in Analytics
-3. Ensure Chart.js dependencies are installed
 
-### PWA Installation Issues
-1. Serve the app over HTTPS in production
-2. Check that the manifest.json is properly configured
-3. Ensure service worker is registered
+- **Clarity** - Clean typography and intuitive navigation
+- **Deference** - Content-first design with subtle UI elements
+- **Depth** - Layered interface with appropriate shadows and blur effects
+- **Consistency** - Unified design language throughout the app
+
+## AI Features Deep Dive
+
+### Workout Analysis
+- Evaluates training consistency and patterns
+- Identifies muscle imbalances and weaknesses
+- Suggests optimal rep ranges and intensity
+- Provides progressive overload recommendations
+
+### Split Evaluation
+- Analyzes workout split effectiveness
+- Checks for proper muscle group balance
+- Evaluates recovery time between sessions
+- Rates splits on a 1-10 scale with detailed feedback
+
+### Personalized Insights
+- Weekly training focus recommendations
+- Exercise selection optimization
+- Recovery and nutrition suggestions
+- Goal-specific program adjustments
+
+## Analytics & Metrics
+
+### Tracked Metrics
+- Total volume (weight × reps)
+- Training frequency per muscle group
+- Average difficulty ratings
+- Progressive overload trends
+- Workout consistency patterns
+
+### Visualizations
+- Activity rings for daily goals
+- Muscle group distribution charts
+- Weekly progress graphs
+- Rep and weight range analysis
+
+## Configuration
+
+### Environment Variables
+```env
+VITE_GEMINI_API_KEY=your_gemini_api_key
+```
+
+### Customization
+- Modify `tailwind.config.js` for theme customization
+- Update `src/context/ThemeContext.jsx` for color schemes
+- Customize AI prompts in `src/services/aiService.js`
 
 ## Contributing
 
-This is a complete, production-ready fitness tracking application. Feel free to:
-- Add new exercise types or categories
-- Enhance the AI prompts for better insights
-- Improve the mobile UI/UX
-- Add new chart types or analytics
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-MIT License - Feel free to use this project for personal or commercial purposes.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- **Apple** - Design inspiration from Apple Fitness
+- **Google** - Gemini AI for intelligent analysis
+- **React Team** - Amazing framework and ecosystem
+- **Tailwind CSS** - Utility-first CSS framework
+
+## Support
+
+- **Issues** - [GitHub Issues](https://github.com/Priyangshu713/GymGenie/issues)
+- **Discussions** - [GitHub Discussions](https://github.com/Priyangshu713/GymGenie/discussions)
 
 ---
 
