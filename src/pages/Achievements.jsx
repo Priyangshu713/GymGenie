@@ -17,7 +17,10 @@ import {
   calculateAchievements, 
   getAchievementProgress,
   getRarityColor,
-  calculateTotalPoints
+  calculateTotalPoints,
+  getUserRank,
+  getRankProgress,
+  getRankMotivation
 } from '../utils/achievements'
 
 const Achievements = () => {
@@ -31,6 +34,9 @@ const Achievements = () => {
 
   const totalPoints = calculateTotalPoints(unlockedAchievements)
   const completionPercentage = Math.round((unlockedAchievements.length / Object.keys(ACHIEVEMENTS).length) * 100)
+  const currentRank = getUserRank(totalPoints)
+  const rankProgress = getRankProgress(totalPoints)
+  const motivation = getRankMotivation(currentRank, rankProgress.nextRank)
 
   const filteredAchievements = useMemo(() => {
     let achievements = showUnlockedOnly ? unlockedAchievements : [...unlockedAchievements, ...lockedAchievements]
@@ -159,13 +165,61 @@ const Achievements = () => {
           <p className="text-gray-400">Track your fitness journey and unlock rewards</p>
         </div>
 
-        {/* Stats Overview */}
+        {/* Gym Rank Display */}
         <div className="bg-gray-900 rounded-2xl p-6 mb-6">
-          <div className="grid grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-400 mb-1">{totalPoints}</div>
-              <div className="text-gray-400 text-sm">Points</div>
+          {/* Current Rank */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl ${currentRank.bgColor} ${currentRank.borderColor} border-2`}>
+                {currentRank.icon}
+              </div>
+              <div>
+                <h2 className={`text-2xl font-bold ${currentRank.color}`}>
+                  {currentRank.title}
+                </h2>
+                <p className="text-gray-400 text-sm">{currentRank.description}</p>
+                <p className="text-gray-500 text-xs mt-1">{totalPoints.toLocaleString()} points</p>
+              </div>
             </div>
+          </div>
+
+          {/* Progress to Next Rank */}
+          {rankProgress.nextRank && (
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-white font-medium">Progress to {rankProgress.nextRank.title}</span>
+                <span className="text-gray-400 text-sm">
+                  {rankProgress.pointsToNext.toLocaleString()} points to go
+                </span>
+              </div>
+              <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
+                <div 
+                  className={`h-3 rounded-full transition-all duration-500 bg-gradient-to-r ${
+                    currentRank.id === 'newbie' ? 'from-gray-500 to-green-500' :
+                    currentRank.id === 'beginner' ? 'from-green-500 to-blue-500' :
+                    currentRank.id === 'enthusiast' ? 'from-blue-500 to-purple-500' :
+                    currentRank.id === 'dedicated' ? 'from-purple-500 to-orange-500' :
+                    currentRank.id === 'warrior' ? 'from-orange-500 to-red-500' :
+                    currentRank.id === 'beast' ? 'from-red-500 to-cyan-500' :
+                    currentRank.id === 'titan' ? 'from-cyan-500 to-yellow-500' :
+                    'from-yellow-500 to-pink-500'
+                  }`}
+                  style={{ width: `${rankProgress.progress}%` }}
+                />
+              </div>
+              <div className="text-center">
+                <span className="text-sm font-medium text-gray-300">{rankProgress.progress}% complete</span>
+              </div>
+            </div>
+          )}
+
+          {/* Motivation Message */}
+          <div className="bg-gray-800 rounded-xl p-4 mb-6">
+            <p className="text-center text-gray-300 font-medium">{motivation}</p>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="grid grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-green-400 mb-1">{unlockedAchievements.length}</div>
               <div className="text-gray-400 text-sm">Unlocked</div>
@@ -177,6 +231,12 @@ const Achievements = () => {
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-400 mb-1">{Object.keys(ACHIEVEMENTS).length}</div>
               <div className="text-gray-400 text-sm">Total</div>
+            </div>
+            <div className="text-center">
+              <div className={`text-2xl font-bold mb-1 ${currentRank.color}`}>
+                {rankProgress.nextRank ? `${rankProgress.progress}%` : 'MAX'}
+              </div>
+              <div className="text-gray-400 text-sm">Rank</div>
             </div>
           </div>
         </div>

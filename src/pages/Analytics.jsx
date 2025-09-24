@@ -12,7 +12,7 @@ import {
   ExternalLink,
   Star
 } from 'lucide-react'
-import { calculateAchievements, calculateTotalPoints, ACHIEVEMENTS } from '../utils/achievements'
+import { calculateAchievements, calculateTotalPoints, ACHIEVEMENTS, getUserRank, getRankProgress } from '../utils/achievements'
 import WorkoutChart from '../components/WorkoutChart'
 import MuscleGroupChart from '../components/MuscleGroupChart'
 import ProgressChart from '../components/ProgressChart'
@@ -358,20 +358,17 @@ const Analytics = () => {
           {(() => {
             const { unlockedAchievements } = calculateAchievements(workouts)
             const totalPoints = calculateTotalPoints(unlockedAchievements)
+            const currentRank = getUserRank(totalPoints)
+            const rankProgress = getRankProgress(totalPoints)
             const recentAchievements = unlockedAchievements.slice(-3) // Show last 3 unlocked
-            
-            // Debug info
-            console.log('Workouts:', workouts.length)
-            console.log('Unlocked achievements:', unlockedAchievements.length)
-            console.log('Total achievements:', Object.keys(ACHIEVEMENTS).length)
             
             return (
               <>
-                {/* Achievement Stats */}
+                {/* Rank Stats */}
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="bg-gray-800 rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-yellow-400 mb-1">{totalPoints}</div>
-                    <div className="text-gray-400 text-xs">Points</div>
+                    <div className={`text-lg font-bold mb-1 ${currentRank.color}`}>{currentRank.icon}</div>
+                    <div className="text-gray-400 text-xs">{currentRank.title.replace('Gym ', '')}</div>
                   </div>
                   <div className="bg-gray-800 rounded-lg p-3 text-center">
                     <div className="text-lg font-bold text-green-400 mb-1">{unlockedAchievements.length}</div>

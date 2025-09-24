@@ -291,12 +291,11 @@ const Profile = () => {
     }
   }
 
-  // Professional report export function
-  const exportProfessionalReport = async () => {
+  // Professional report export function with AI analysis
+  const exportProfessionalReportWithAI = async () => {
     try {
       // Show loading state
-      const originalText = 'Export Professional Report'
-      const button = document.querySelector('.export-report-btn')
+      const button = document.querySelector('.export-report-ai-btn')
       if (button) button.textContent = 'Generating AI Insights...'
 
       // Generate AI insights for the report
@@ -327,6 +326,38 @@ const Profile = () => {
         // Continue without AI insights if they fail
       }
 
+      await generatePDFReport(true, aiInsights, splitAnalysisForReport)
+    } catch (error) {
+      console.error('Error generating professional report with AI:', error)
+      alert('Failed to generate professional report with AI analysis. Please try again.')
+    } finally {
+      // Reset button text
+      const button = document.querySelector('.export-report-ai-btn')
+      if (button) button.textContent = 'PDF + AI'
+    }
+  }
+
+  // Professional report export function without AI analysis
+  const exportProfessionalReportBasic = async () => {
+    try {
+      // Show loading state
+      const button = document.querySelector('.export-report-basic-btn')
+      if (button) button.textContent = 'Generating PDF...'
+
+      await generatePDFReport(false, null, null)
+    } catch (error) {
+      console.error('Error generating basic professional report:', error)
+      alert('Failed to generate professional report. Please try again.')
+    } finally {
+      // Reset button text
+      const button = document.querySelector('.export-report-basic-btn')
+      if (button) button.textContent = 'PDF Only'
+    }
+  }
+
+  // Unified PDF generation function
+  const generatePDFReport = async (includeAI, aiInsights, splitAnalysisForReport) => {
+    try {
       // Create comprehensive report data
       const reportData = {
         userInfo: {
@@ -358,9 +389,10 @@ const Profile = () => {
         // Split comparison data
         splitComparison: {},
         splitProgress: {},
-        // AI-generated insights
-        aiInsights: aiInsights,
-        splitAnalysis: splitAnalysisForReport
+        // AI-generated insights (only include if requested)
+        aiInsights: includeAI ? aiInsights : null,
+        splitAnalysis: includeAI ? splitAnalysisForReport : null,
+        includeAI: includeAI
       }
 
       // Calculate comprehensive analytics
@@ -679,20 +711,18 @@ const Profile = () => {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `gymgenie-professional-report-${new Date().toISOString().split('T')[0]}.html`
+      const reportType = includeAI ? 'with-ai' : 'basic'
+      a.download = `gymgenie-professional-report-${reportType}-${new Date().toISOString().split('T')[0]}.html`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
       
-      alert('Professional report generated! Open the HTML file in your browser and use Print > Save as PDF to create a PDF report.')
+      const reportTypeText = includeAI ? 'with AI analysis' : 'basic'
+      alert(`Professional report ${reportTypeText} generated! Open the HTML file in your browser and use Print > Save as PDF to create a PDF report.`)
     } catch (error) {
       console.error('Error generating professional report:', error)
       alert('Error generating professional report. Please try again.')
-    } finally {
-      // Reset button text
-      const button = document.querySelector('.export-report-btn')
-      if (button) button.textContent = 'Export Professional Report'
     }
   }
 
@@ -1848,18 +1878,33 @@ const Profile = () => {
                     JSON
                   </button>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white text-sm font-medium">Professional Report</p>
-                    <p className="text-gray-400 text-xs">PDF with charts & analysis</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white text-sm font-medium">Professional Report + AI</p>
+                      <p className="text-gray-400 text-xs">PDF with charts, analysis & AI insights</p>
+                    </div>
+                    <button
+                      onClick={exportProfessionalReportWithAI}
+                      className="export-report-ai-btn px-3 py-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg transition-all duration-200 flex items-center active:scale-95 text-sm"
+                    >
+                      <Download size={14} className="mr-1" />
+                      PDF + AI
+                    </button>
                   </div>
-                  <button
-                    onClick={exportProfessionalReport}
-                    className="export-report-btn px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 flex items-center active:scale-95 text-sm"
-                  >
-                    <Download size={14} className="mr-1" />
-                    PDF
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white text-sm font-medium">Professional Report</p>
+                      <p className="text-gray-400 text-xs">PDF with charts & basic analysis only</p>
+                    </div>
+                    <button
+                      onClick={exportProfessionalReportBasic}
+                      className="export-report-basic-btn px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 flex items-center active:scale-95 text-sm"
+                    >
+                      <Download size={14} className="mr-1" />
+                      PDF Only
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
