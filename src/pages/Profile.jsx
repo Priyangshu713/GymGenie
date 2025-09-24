@@ -355,6 +355,9 @@ const Profile = () => {
         repRanges: { '1-5': 0, '6-10': 0, '11-15': 0, '16-20': 0, '21+': 0 },
         weightRanges: { '0-10': 0, '11-25': 0, '26-50': 0, '51-100': 0, '100+': 0 },
         recommendations: [],
+        // Split comparison data
+        splitComparison: {},
+        splitProgress: {},
         // AI-generated insights
         aiInsights: aiInsights,
         splitAnalysis: splitAnalysisForReport
@@ -442,6 +445,225 @@ const Profile = () => {
           sets: weekWorkouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.length, 0), 0)
         })
       }
+
+      // Calculate split comparison data using the same logic as SplitComparison component
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+      const splits = {}
+      
+      // Get user's workout split from localStorage
+      let userSplit = null
+      try {
+        const savedSplit = localStorage.getItem('gymgenie-workout-split')
+        userSplit = savedSplit ? JSON.parse(savedSplit) : null
+      } catch (error) {
+        console.error('Error parsing workout split:', error)
+      }
+      
+      workouts.forEach(workout => {
+        const dayOfWeek = new Date(workout.date).getDay()
+        const dayName = dayNames[dayOfWeek]
+        
+        let key = dayName
+        
+        // If user has a configured split, use it
+        if (userSplit && userSplit.schedule) {
+          const dayNumber = dayOfWeek === 0 ? 7 : dayOfWeek // Convert Sunday from 0 to 7
+          const plannedSplit = userSplit.schedule[dayNumber]
+          
+          if (plannedSplit && plannedSplit.name && plannedSplit.name !== 'Rest') {
+            key = `${dayName} (${plannedSplit.name})`
+          }
+        } else {
+          // Fallback: use day name only (same as SplitComparison component)
+          key = dayName
+        }
+        
+        if (!splits[key]) {
+          splits[key] = {
+            sessions: [],
+            totalVolume: 0,
+            totalSets: 0,
+            totalReps: 0,
+            maxWeight: 0,
+            muscleGroups: {},
+            exercises: {}
+          }
+        }
+
+        let workoutVolume = 0
+        let workoutSets = 0
+        let workoutReps = 0
+        let workoutMaxWeight = 0
+        const sessionMuscleGroups = {}
+        const sessionExercises = {}
+
+        workout.exercises.forEach(exercise => {
+          const exerciseName = exercise.name || 'Unknown Exercise'
+          const muscleGroup = exercise.muscleGroup || 'General'
+          
+          let exerciseVolume = 0
+          let exerciseSets = exercise.sets.length
+          let exerciseReps = 0
+          let exerciseMaxWeight = 0
+
+          exercise.sets.forEach(set => {
+            const weight = set.weight || 0
+            const reps = set.reps || 0
+            const volume = weight * reps
+
+            exerciseReps += reps
+            exerciseVolume += volume
+            exerciseMaxWeight = Math.max(exerciseMaxWeight, weight)
+            
+            workoutReps += reps
+            workoutVolume += volume
+            workoutMaxWeight = Math.max(workoutMaxWeight, weight)
+          })
+
+          workoutSets += exerciseSets
+
+          // Track muscle group data
+          if (!sessionMuscleGroups[muscleGroup]) {
+            sessionMuscleGroups[muscleGroup] = {
+              volume: 0,
+              sets: 0,
+              reps: 0,
+              maxWeight: 0
+            }
+          }
+          sessionMuscleGroups[muscleGroup].volume += exerciseVolume
+          sessionMuscleGroups[muscleGroup].sets += exerciseSets
+          sessionMuscleGroups[muscleGroup].reps += exerciseReps
+          sessionMuscleGroups[muscleGroup].maxWeight = Math.max(sessionMuscleGroups[muscleGroup].maxWeight, exerciseMaxWeight)
+
+          // Track exercise data
+          sessionExercises[exerciseName] = {
+            muscleGroup: muscleGroup,
+            volume: exerciseVolume,
+            sets: exerciseSets,
+            reps: exerciseReps,
+            maxWeight: exerciseMaxWeight
+          }
+
+          // Update split totals for muscle groups
+          if (!splits[key].muscleGroups[muscleGroup]) {
+            splits[key].muscleGroups[muscleGroup] = {
+              totalVolume: 0,
+              totalSets: 0,
+              totalReps: 0,
+              maxWeight: 0,
+              sessions: 0
+            }
+          }
+          splits[key].muscleGroups[muscleGroup].totalVolume += exerciseVolume
+          splits[key].muscleGroups[muscleGroup].totalSets += exerciseSets
+          splits[key].muscleGroups[muscleGroup].totalReps += exerciseReps
+          splits[key].muscleGroups[muscleGroup].maxWeight = Math.max(splits[key].muscleGroups[muscleGroup].maxWeight, exerciseMaxWeight)
+
+          // Update split totals for exercises
+          if (!splits[key].exercises[exerciseName]) {
+            splits[key].exercises[exerciseName] = {
+              muscleGroup: muscleGroup,
+              totalVolume: 0,
+              totalSets: 0,
+              totalReps: 0,
+              maxWeight: 0,
+              sessions: 0
+            }
+          }
+          splits[key].exercises[exerciseName].totalVolume += exerciseVolume
+          splits[key].exercises[exerciseName].totalSets += exerciseSets
+          splits[key].exercises[exerciseName].totalReps += exerciseReps
+          splits[key].exercises[exerciseName].maxWeight = Math.max(splits[key].exercises[exerciseName].maxWeight, exerciseMaxWeight)
+        })
+
+        // Mark muscle groups as used in this session
+        Object.keys(sessionMuscleGroups).forEach(muscleGroup => {
+          splits[key].muscleGroups[muscleGroup].sessions += 1
+        })
+
+        // Mark exercises as used in this session
+        Object.keys(sessionExercises).forEach(exerciseName => {
+          splits[key].exercises[exerciseName].sessions += 1
+        })
+
+        splits[key].sessions.push({
+          date: workout.date,
+          volume: workoutVolume,
+          sets: workoutSets,
+          reps: workoutReps,
+          maxWeight: workoutMaxWeight,
+          muscleGroups: sessionMuscleGroups,
+          exercises: sessionExercises
+        })
+
+        splits[key].totalVolume += workoutVolume
+        splits[key].totalSets += workoutSets
+        splits[key].totalReps += workoutReps
+        splits[key].maxWeight = Math.max(splits[key].maxWeight, workoutMaxWeight)
+      })
+
+      // Calculate averages and progress for each split
+      Object.entries(splits).forEach(([key, split]) => {
+        const sessionCount = split.sessions.length
+        if (sessionCount > 0) {
+          // Calculate muscle group averages
+          const muscleGroupsData = {}
+          Object.entries(split.muscleGroups).forEach(([muscle, data]) => {
+            muscleGroupsData[muscle] = {
+              avgVolume: Math.round(data.totalVolume / data.sessions),
+              avgSets: Math.round(data.totalSets / data.sessions),
+              avgReps: Math.round(data.totalReps / data.sessions),
+              maxWeight: data.maxWeight,
+              sessions: data.sessions
+            }
+          })
+
+          // Calculate exercise averages
+          const exercisesData = {}
+          Object.entries(split.exercises).forEach(([exercise, data]) => {
+            exercisesData[exercise] = {
+              muscleGroup: data.muscleGroup,
+              avgVolume: Math.round(data.totalVolume / data.sessions),
+              avgSets: Math.round(data.totalSets / data.sessions),
+              avgReps: Math.round(data.totalReps / data.sessions),
+              maxWeight: data.maxWeight,
+              sessions: data.sessions
+            }
+          })
+
+          reportData.splitComparison[key] = {
+            avgVolume: Math.round(split.totalVolume / sessionCount),
+            avgSets: Math.round(split.totalSets / sessionCount),
+            avgReps: Math.round(split.totalReps / sessionCount),
+            maxWeight: split.maxWeight,
+            sessions: sessionCount,
+            muscleGroups: muscleGroupsData,
+            exercises: exercisesData
+          }
+          
+          // Calculate progress trend (last 4 sessions)
+          const recentSessions = split.sessions
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .slice(-4)
+          
+          if (recentSessions.length >= 2) {
+            const firstVolume = recentSessions[0].volume
+            const lastVolume = recentSessions[recentSessions.length - 1].volume
+            const progressPercent = firstVolume > 0 ? ((lastVolume - firstVolume) / firstVolume) * 100 : 0
+            
+            reportData.splitProgress[key] = {
+              trend: progressPercent > 5 ? 'Improving' : progressPercent < -5 ? 'Declining' : 'Stable',
+              progressPercent: Math.round(progressPercent),
+              recentSessions: recentSessions.map(s => ({
+                date: new Date(s.date).toLocaleDateString(),
+                volume: s.volume,
+                sets: s.sets
+              }))
+            }
+          }
+        }
+      })
 
       // Get top 10 exercises
       const sortedExercises = Object.entries(reportData.topExercises)
@@ -611,6 +833,111 @@ const Profile = () => {
                 </div>
             </div>
 
+            ${Object.keys(data.splitComparison).length > 0 ? `
+            <div class="section">
+                <h2>🔄 Split Comparison Analysis</h2>
+                <p style="color: #6b7280; margin-bottom: 30px;">Compare your performance across different workout splits and days</p>
+                
+                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    ${Object.entries(data.splitComparison).map(([splitName, splitData]) => `
+                        <div class="card" style="border-left: 4px solid #3b82f6;">
+                            <h4 style="color: #1f2937; margin: 0 0 15px 0; font-size: 1.1rem;">${splitName}</h4>
+                            
+                            <!-- Overall Stats -->
+                            <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 0.85rem; margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 6px;">
+                                <div style="text-align: center;">
+                                    <div style="color: #6b7280; font-size: 0.75rem;">Avg Volume</div>
+                                    <div style="font-weight: 600; color: #ef4444;">${splitData.avgVolume} kg</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="color: #6b7280; font-size: 0.75rem;">Avg Sets</div>
+                                    <div style="font-weight: 600; color: #10b981;">${splitData.avgSets}</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="color: #6b7280; font-size: 0.75rem;">Sessions</div>
+                                    <div style="font-weight: 600; color: #f59e0b;">${splitData.sessions}</div>
+                                </div>
+                            </div>
+
+                            <!-- Muscle Groups Breakdown -->
+                            ${splitData.muscleGroups && Object.keys(splitData.muscleGroups).length > 0 ? `
+                                <div style="margin-bottom: 15px;">
+                                    <h5 style="color: #374151; margin: 0 0 10px 0; font-size: 0.9rem; font-weight: 600;">💪 Muscle Groups</h5>
+                                    <div style="display: grid; gap: 8px;">
+                                        ${Object.entries(splitData.muscleGroups).map(([muscle, data]) => `
+                                            <div style="display: flex; justify-between; align-items: center; padding: 8px 12px; background: #f1f5f9; border-radius: 4px; font-size: 0.8rem;">
+                                                <div style="font-weight: 500; color: #1f2937; text-transform: capitalize;">${muscle}</div>
+                                                <div style="display: flex; gap: 15px; color: #6b7280;">
+                                                    <span><strong style="color: #ef4444;">${Math.round(data.avgVolume || 0)} kg</strong> vol</span>
+                                                    <span><strong style="color: #8b5cf6;">${data.maxWeight || 0} kg</strong> max</span>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- Top Exercises -->
+                            ${splitData.exercises && Object.keys(splitData.exercises).length > 0 ? `
+                                <div>
+                                    <h5 style="color: #374151; margin: 0 0 10px 0; font-size: 0.9rem; font-weight: 600;">🏋️ Top Exercises</h5>
+                                    <div style="display: grid; gap: 6px;">
+                                        ${Object.entries(splitData.exercises).slice(0, 5).map(([exercise, data]) => `
+                                            <div style="display: flex; justify-between; align-items: center; padding: 6px 10px; background: #fef7ff; border-radius: 4px; font-size: 0.75rem;">
+                                                <div>
+                                                    <div style="font-weight: 500; color: #1f2937;">${exercise}</div>
+                                                    <div style="color: #8b5cf6; font-size: 0.7rem; text-transform: capitalize;">${data.muscleGroup}</div>
+                                                </div>
+                                                <div style="text-align: right; color: #6b7280;">
+                                                    <div><strong style="color: #8b5cf6;">${data.maxWeight || 0} kg</strong></div>
+                                                    <div style="font-size: 0.7rem;">${Math.round(data.avgVolume || 0)} kg vol</div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- Progress Trend -->
+                            ${data.splitProgress[splitName] ? `
+                                <div style="margin-top: 15px; padding: 10px; background: ${data.splitProgress[splitName].trend === 'Improving' ? '#f0fdf4' : data.splitProgress[splitName].trend === 'Declining' ? '#fef2f2' : '#f8fafc'}; border-radius: 6px; border-left: 3px solid ${data.splitProgress[splitName].trend === 'Improving' ? '#10b981' : data.splitProgress[splitName].trend === 'Declining' ? '#ef4444' : '#6b7280'};">
+                                    <div style="font-size: 0.8rem; color: #6b7280;">Recent Trend</div>
+                                    <div style="font-weight: 600; color: ${data.splitProgress[splitName].trend === 'Improving' ? '#10b981' : data.splitProgress[splitName].trend === 'Declining' ? '#ef4444' : '#6b7280'};">
+                                        ${data.splitProgress[splitName].trend} (${data.splitProgress[splitName].progressPercent > 0 ? '+' : ''}${data.splitProgress[splitName].progressPercent}%)
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                
+                ${Object.keys(data.splitProgress).length > 0 ? `
+                    <div style="background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 20px; border-radius: 8px;">
+                        <h4 style="color: #0369a1; margin-top: 0;">📊 Split Progress Insights</h4>
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                            ${Object.entries(data.splitProgress).map(([splitName, progress]) => `
+                                <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e0f2fe;">
+                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 8px;">${splitName}</div>
+                                    <div style="font-size: 0.9rem; color: #6b7280; margin-bottom: 10px;">
+                                        Recent trend: <span style="color: ${progress.trend === 'Improving' ? '#10b981' : progress.trend === 'Declining' ? '#ef4444' : '#6b7280'}; font-weight: 600;">${progress.trend}</span>
+                                    </div>
+                                    <div style="font-size: 0.8rem;">
+                                        <div style="color: #6b7280; margin-bottom: 5px;">Last 4 sessions:</div>
+                                        ${progress.recentSessions.map(session => `
+                                            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                                <span>${session.date}</span>
+                                                <span>${session.volume} kg (${session.sets} sets)</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+            ` : ''}
+
             ${data.aiInsights ? `
             <div class="section">
                 <h2>🤖 AI-Generated Workout Insights</h2>
@@ -677,6 +1004,8 @@ const Profile = () => {
         const setRangesData = ${JSON.stringify(data.setRanges)};
         const weeklyProgressData = ${JSON.stringify(data.weeklyProgress)};
         const workoutFrequencyData = ${JSON.stringify(data.workoutFrequency)};
+        const splitComparisonData = ${JSON.stringify(data.splitComparison)};
+        const splitProgressData = ${JSON.stringify(data.splitProgress)};
 
         // 1. Muscle Group Sets Distribution (Pie Chart)
         new Chart(document.getElementById('muscleChart').getContext('2d'), {

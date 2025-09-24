@@ -7,11 +7,16 @@ import {
   Calendar, 
   Target,
   Activity,
-  PieChart
+  PieChart,
+  Award,
+  ExternalLink,
+  Star
 } from 'lucide-react'
+import { calculateAchievements, calculateTotalPoints, ACHIEVEMENTS } from '../utils/achievements'
 import WorkoutChart from '../components/WorkoutChart'
 import MuscleGroupChart from '../components/MuscleGroupChart'
 import ProgressChart from '../components/ProgressChart'
+import SplitComparison from '../components/SplitComparison'
 import { 
   startOfWeek, 
   endOfWeek, 
@@ -49,33 +54,104 @@ const Analytics = () => {
   }, [filteredWorkouts])
 
   const weeklyData = useMemo(() => {
-    const weeks = {}
-    filteredWorkouts.forEach(workout => {
-      const weekStart = startOfWeek(new Date(workout.date))
-      const weekKey = format(weekStart, 'MMM d')
-      
-      if (!weeks[weekKey]) {
-        weeks[weekKey] = { workouts: 0, exercises: 0, sets: 0, weight: 0 }
+    const timeRangeNum = parseInt(timeRange)
+    const useDaily = timeRangeNum <= 30 // Use daily data for 30 days or less
+    
+    if (useDaily) {
+      // Only show data from when user actually started working out
+      if (filteredWorkouts.length === 0) {
+        return []
       }
       
-      weeks[weekKey].workouts += 1
-      weeks[weekKey].exercises += workout.exercises.length
+      // Find the earliest workout date within the time range
+      const workoutDates = filteredWorkouts.map(w => new Date(w.date))
+      const earliestWorkout = new Date(Math.min(...workoutDates))
+      const today = new Date()
       
-      workout.exercises.forEach(exercise => {
-        weeks[weekKey].sets += exercise.sets.length
-        if (exercise.type === 'strength') {
-          exercise.sets.forEach(set => {
-            weeks[weekKey].weight += (set.weight || 0) * (set.reps || 0)
+      // Calculate the actual date range to show (from first workout to today, but within time range limit)
+      const maxStartDate = subDays(today, timeRangeNum - 1)
+      const actualStartDate = earliestWorkout > maxStartDate ? earliestWorkout : maxStartDate
+      
+      // Generate daily data only for the period with actual activity
+      const daysArray = []
+      let currentDate = new Date(actualStartDate)
+      
+      while (currentDate <= today) {
+        const dayKey = format(currentDate, 'MMM d')
+        daysArray.push({
+          date: new Date(currentDate),
+          week: dayKey,
+          workouts: 0,
+          exercises: 0,
+          sets: 0,
+          weight: 0
+        })
+        currentDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000) // Add 1 day
+      }
+      
+      // Fill in actual workout data
+      filteredWorkouts.forEach(workout => {
+        const workoutDate = new Date(workout.date)
+        const dayIndex = daysArray.findIndex(day => 
+          format(day.date, 'MMM d') === format(workoutDate, 'MMM d')
+        )
+        
+        if (dayIndex !== -1) {
+          daysArray[dayIndex].workouts += 1
+          daysArray[dayIndex].exercises += workout.exercises.length
+          
+          workout.exercises.forEach(exercise => {
+            daysArray[dayIndex].sets += exercise.sets.length
+            if (exercise.type === 'strength') {
+              exercise.sets.forEach(set => {
+                daysArray[dayIndex].weight += (set.weight || 0) * (set.reps || 0)
+              })
+            }
           })
         }
       })
-    })
-    
-    return Object.entries(weeks).map(([week, data]) => ({
-      week,
-      ...data
-    }))
-  }, [filteredWorkouts])
+      
+      // Remove the date property before returning (not needed for chart)
+      const result = daysArray.map(({ date, ...data }) => data)
+      console.log('Daily data order:', result.map(d => d.week))
+      return result
+    } else {
+      // Use weekly data for longer time ranges
+      const weeks = {}
+      filteredWorkouts.forEach(workout => {
+        const weekStart = startOfWeek(new Date(workout.date))
+        const weekKey = format(weekStart, 'MMM d')
+        
+        if (!weeks[weekKey]) {
+          weeks[weekKey] = { workouts: 0, exercises: 0, sets: 0, weight: 0 }
+        }
+        
+        weeks[weekKey].workouts += 1
+        weeks[weekKey].exercises += workout.exercises.length
+        
+        workout.exercises.forEach(exercise => {
+          weeks[weekKey].sets += exercise.sets.length
+          if (exercise.type === 'strength') {
+            exercise.sets.forEach(set => {
+              weeks[weekKey].weight += (set.weight || 0) * (set.reps || 0)
+            })
+          }
+        })
+      })
+      
+      return Object.entries(weeks)
+        .sort(([weekA], [weekB]) => {
+          // Sort by week start date to ensure chronological order
+          const dateA = new Date(`${weekA} ${new Date().getFullYear()}`)
+          const dateB = new Date(`${weekB} ${new Date().getFullYear()}`)
+          return dateA - dateB
+        })
+        .map(([week, data]) => ({
+          week,
+          ...data
+        }))
+    }
+  }, [filteredWorkouts, timeRange])
 
   const exerciseTypeData = useMemo(() => {
     const types = { strength: 0, cardio: 0 }
@@ -260,61 +336,95 @@ const Analytics = () => {
           )}
         </div>
 
+        {/* Split Comparison */}
+        <SplitComparison workouts={workouts} />
+
         {/* Recent Achievements */}
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Recent Achievements
-          </h2>
-          
-          <div className="space-y-3">
-            {filteredWorkouts.length >= 5 && (
-              <div className="flex items-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center mr-3">
-                  🏆
-                </div>
-                <div>
-                  <p className="font-medium text-yellow-800 dark:text-yellow-200">
-                    Consistency Champion
-                  </p>
-                  <p className="text-sm text-yellow-600 dark:text-yellow-300">
-                    Completed {filteredWorkouts.length} workouts in the last {timeRange} days
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {Object.keys(muscleGroupData).length >= 3 && (
-              <div className="flex items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
-                  💪
-                </div>
-                <div>
-                  <p className="font-medium text-blue-800 dark:text-blue-200">
-                    Well-Rounded Trainer
-                  </p>
-                  <p className="text-sm text-blue-600 dark:text-blue-300">
-                    Trained {Object.keys(muscleGroupData).length} different muscle groups
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {exerciseTypeData.strength > 0 && exerciseTypeData.cardio > 0 && (
-              <div className="flex items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-3">
-                  ⚡
-                </div>
-                <div>
-                  <p className="font-medium text-green-800 dark:text-green-200">
-                    Balanced Approach
-                  </p>
-                  <p className="text-sm text-green-600 dark:text-green-300">
-                    Combined strength training with cardio exercises
-                  </p>
-                </div>
-              </div>
-            )}
+        <div className="bg-gray-900 rounded-2xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-white font-semibold flex items-center">
+              <Award size={20} className="mr-2 text-blue-400" />
+              Recent Achievements
+            </h2>
+            <a 
+              href="/achievements" 
+              className="flex items-center space-x-1 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
+            >
+              <span>View All</span>
+              <ExternalLink size={14} />
+            </a>
           </div>
+          
+          {(() => {
+            const { unlockedAchievements } = calculateAchievements(workouts)
+            const totalPoints = calculateTotalPoints(unlockedAchievements)
+            const recentAchievements = unlockedAchievements.slice(-3) // Show last 3 unlocked
+            
+            // Debug info
+            console.log('Workouts:', workouts.length)
+            console.log('Unlocked achievements:', unlockedAchievements.length)
+            console.log('Total achievements:', Object.keys(ACHIEVEMENTS).length)
+            
+            return (
+              <>
+                {/* Achievement Stats */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gray-800 rounded-lg p-3 text-center">
+                    <div className="text-lg font-bold text-yellow-400 mb-1">{totalPoints}</div>
+                    <div className="text-gray-400 text-xs">Points</div>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-3 text-center">
+                    <div className="text-lg font-bold text-green-400 mb-1">{unlockedAchievements.length}</div>
+                    <div className="text-gray-400 text-xs">Unlocked</div>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-3 text-center">
+                    <div className="text-lg font-bold text-blue-400 mb-1">{Math.round((unlockedAchievements.length / Object.keys(ACHIEVEMENTS).length) * 100)}%</div>
+                    <div className="text-gray-400 text-xs">Complete</div>
+                  </div>
+                </div>
+
+                {/* Recent Achievements */}
+                <div className="space-y-3">
+                  {recentAchievements.length > 0 ? (
+                    recentAchievements.map(achievement => (
+                      <div key={achievement.id} className="flex items-center p-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mr-3 text-lg">
+                          {achievement.icon}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <p className="font-semibold text-blue-400 text-sm">
+                              {achievement.title}
+                            </p>
+                            <div className="flex items-center space-x-1">
+                              <Star size={12} className="text-yellow-400" />
+                              <span className="text-yellow-400 text-xs font-medium">{achievement.points}</span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-300">
+                            {achievement.description}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-6">
+                      <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Award size={20} className="text-gray-600" />
+                      </div>
+                      <p className="text-gray-400 font-medium text-sm mb-1">No Achievements Yet</p>
+                      <p className="text-gray-500 text-xs">
+                        {workouts.length === 0 
+                          ? 'Log your first workout to unlock "First Steps"!' 
+                          : 'Complete more workouts to unlock achievements!'
+                        }
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          })()}
         </div>
       </div>
     </div>

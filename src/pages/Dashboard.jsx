@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useWorkout } from '../context/WorkoutContext'
 import ActivityRings from '../components/ActivityRings'
+import DateRangeSelector from '../components/DateRangeSelector'
 import { 
-  Plus, 
+  Plus,
   Calendar, 
   ChevronRight,
   Award,
@@ -12,14 +13,38 @@ import {
   X,
   Clock,
   Target,
-  BarChart3
+  BarChart3,
+  Trophy
 } from 'lucide-react'
-import { format, isToday, isThisWeek } from 'date-fns'
+import { format, isToday, isThisWeek, subDays, isAfter, isSameDay, startOfDay, endOfDay } from 'date-fns'
 
 const Dashboard = () => {
   const { workouts, stats, currentWorkout } = useWorkout()
   const [selectedWorkout, setSelectedWorkout] = useState(null)
   const [showMuscleDetails, setShowMuscleDetails] = useState(false)
+  const [timeRange, setTimeRange] = useState('0') // Default to Today
+  const [customDate, setCustomDate] = useState(null)
+  const [showDateSelector, setShowDateSelector] = useState(false)
+
+  const filteredWorkouts = useMemo(() => {
+    if (timeRange === '0') {
+      // Today only
+      return workouts.filter(workout => 
+        isToday(new Date(workout.date))
+      )
+    } else if (timeRange === 'custom' && customDate) {
+      // Specific date
+      return workouts.filter(workout => 
+        isSameDay(new Date(workout.date), new Date(customDate))
+      )
+    } else {
+      // Range of days
+      const cutoffDate = subDays(new Date(), parseInt(timeRange))
+      return workouts.filter(workout => 
+        isAfter(new Date(workout.date), cutoffDate)
+      )
+    }
+  }, [workouts, timeRange, customDate])
 
   const todaysWorkouts = workouts.filter(workout => 
     isToday(new Date(workout.date))
@@ -33,8 +58,8 @@ const Dashboard = () => {
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, 3)
 
-  // Calculate bodybuilding metrics for rings
-  const weeklyVolume = thisWeeksWorkouts.reduce((total, workout) => {
+  // Calculate bodybuilding metrics for rings based on selected time range
+  const selectedVolume = filteredWorkouts.reduce((total, workout) => {
     return total + workout.exercises.reduce((exerciseTotal, exercise) => {
       return exerciseTotal + exercise.sets.reduce((setTotal, set) => {
         return setTotal + ((set.weight || 0) * (set.reps || 0))
@@ -42,9 +67,9 @@ const Dashboard = () => {
     }, 0)
   }, 0)
   
-  const weeklyFrequency = thisWeeksWorkouts.reduce((total, workout) => total + workout.exercises.length, 0)
+  const selectedFrequency = filteredWorkouts.reduce((total, workout) => total + workout.exercises.length, 0)
   
-  const avgIntensity = thisWeeksWorkouts.length > 0 ? thisWeeksWorkouts.reduce((total, workout) => {
+  const avgIntensity = filteredWorkouts.length > 0 ? filteredWorkouts.reduce((total, workout) => {
     if (workout.exercises.length === 0) return total
     const workoutRPE = workout.exercises.reduce((sum, ex) => {
       if (ex.sets.length === 0) return sum
@@ -52,25 +77,83 @@ const Dashboard = () => {
       return sum + avgRPE
     }, 0) / workout.exercises.length
     return total + workoutRPE
-  }, 0) / thisWeeksWorkouts.length : 0
+  }, 0) / filteredWorkouts.length : 0
 
-  // Ring progress based on bodybuilding metrics (KG)
-  const volumeProgress = Math.min((weeklyVolume / 4500) * 100, 100) // Target: 4.5k kg/week
-  const frequencyProgress = Math.min((weeklyFrequency / 20) * 100, 100) // Target: 20 exercises/week  
-  const intensityProgress = Math.min((avgIntensity / 10) * 100, 100) // Target: Difficulty 8-10
+  // Ring progress based on bodybuilding metrics (KG) - adjusted for time range
+  const getTarget = (days, baseTarget) => {
+    if (days === 0) return baseTarget / 7 // Today target is 1/7 of weekly
+    return (baseTarget / 7) * Math.min(days, 7)
+  }
+  
+  const days = timeRange === '0' ? 0 : timeRange === 'custom' ? 1 : parseInt(timeRange)
+  const volumeTarget = getTarget(days, 4500)
+  const frequencyTarget = getTarget(days, 20)
+  
+  const volumeProgress = Math.min((selectedVolume / volumeTarget) * 100, 100)
+  const frequencyProgress = Math.min((selectedFrequency / frequencyTarget) * 100, 100)
+  const intensityProgress = Math.min((avgIntensity / 10) * 100, 100)
 
   return (
     <div className="pb-36 bg-black min-h-screen">
       {/* Header - Apple Fitness Style */}
       <div className="px-4 pt-12 pb-6">
         <div className="flex justify-between items-start mb-8">
-          <div>
+          <div className="flex-1">
             <h1 className="fitness-title">Summary</h1>
-            <p className="fitness-subtitle">{format(new Date(), 'EEEE, MMMM d')}</p>
+            <button 
+              onClick={() => setShowDateSelector(!showDateSelector)}
+              className="fitness-subtitle hover:text-gray-300 transition-colors cursor-pointer flex items-center space-x-2"
+            >
+              <span>
+                {timeRange === '0' 
+                  ? format(new Date(), 'EEEE, MMMM d')
+                  : timeRange === 'custom' && customDate
+                    ? format(new Date(customDate), 'EEEE, MMMM d')
+                    : timeRange === '3'
+                      ? `Last 3 days`
+                      : timeRange === '7'
+                        ? `Last 7 days`
+                        : timeRange === '30'
+                          ? `Last 30 days`
+                          : timeRange === '365'
+                            ? `Last year`
+                            : format(new Date(), 'EEEE, MMMM d')
+                }
+              </span>
+              <Calendar size={16} className="text-gray-400" />
+            </button>
+            {showDateSelector && (
+              <div className="mt-3">
+                <DateRangeSelector
+                  selectedRange={timeRange}
+                  onRangeChange={(range, date) => {
+                    console.log('Range changed:', range, 'Date:', date)
+                    setTimeRange(range)
+                    if (date) {
+                      setCustomDate(date)
+                    } else if (range !== 'custom') {
+                      setCustomDate(null) // Clear custom date when not using custom range
+                    }
+                    setShowDateSelector(false)
+                  }}
+                  showCustomDate={true}
+                  workouts={workouts}
+                />
+              </div>
+            )}
           </div>
-          <Link to="/profile" className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center">
-            <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full"></div>
-          </Link>
+          <div className="flex items-center space-x-3">
+            <Link 
+              to="/achievements" 
+              className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-full flex items-center justify-center hover:scale-105 transition-transform"
+              title="Achievements"
+            >
+              <Trophy size={16} className="text-white" />
+            </Link>
+            <Link to="/profile" className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center">
+              <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full"></div>
+            </Link>
+          </div>
         </div>
 
         {/* Activity Rings - Bodybuilding Metrics */}
@@ -87,12 +170,12 @@ const Dashboard = () => {
         <div className="grid grid-cols-3 gap-6 mb-8">
           <div className="text-center">
             <div className="w-4 h-4 rounded-full mx-auto mb-2" style={{backgroundColor: '#FA114F'}}></div>
-            <div className="fitness-metric-small apple-red">{Math.round(weeklyVolume).toLocaleString()}</div>
+            <div className="fitness-metric-small apple-red">{Math.round(selectedVolume).toLocaleString()}</div>
             <div className="fitness-label">Volume (kg)</div>
           </div>
           <div className="text-center">
             <div className="w-4 h-4 rounded-full mx-auto mb-2" style={{backgroundColor: '#92E82A'}}></div>
-            <div className="fitness-metric-small apple-green">{weeklyFrequency}</div>
+            <div className="fitness-metric-small apple-green">{selectedFrequency}</div>
             <div className="fitness-label">Frequency</div>
           </div>
           <div className="text-center">

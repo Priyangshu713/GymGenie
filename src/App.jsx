@@ -7,6 +7,7 @@ import LogWorkout from './pages/LogWorkout'
 import Analytics from './pages/Analytics'
 import AIInsights from './pages/AIInsights'
 import Profile from './pages/Profile'
+import Achievements from './pages/Achievements'
 import { WorkoutProvider } from './context/WorkoutContext'
 import { ThemeProvider } from './context/ThemeContext'
 
@@ -24,6 +25,7 @@ function App() {
                     <Route path="/log" element={<LogWorkout />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/insights" element={<AIInsights />} />
+                    <Route path="/achievements" element={<Achievements />} />
                     <Route path="/profile" element={<Profile />} />
                   </Routes>
                 </ErrorBoundary>
