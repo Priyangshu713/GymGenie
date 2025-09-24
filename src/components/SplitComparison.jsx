@@ -47,7 +47,9 @@ const SplitComparison = ({ workouts }) => {
   const userSplit = useMemo(() => {
     try {
       const savedSplit = localStorage.getItem('gymgenie-workout-split')
-      return savedSplit ? JSON.parse(savedSplit) : null
+      const parsed = savedSplit ? JSON.parse(savedSplit) : null
+      console.log('User split data:', parsed)
+      return parsed
     } catch (error) {
       console.error('Error parsing workout split:', error)
       return null
@@ -69,7 +71,7 @@ const SplitComparison = ({ workouts }) => {
     }
 
     // If no split is configured, group by day of week
-    if (!userSplit || !userSplit.schedule) {
+    if (!userSplit || !userSplit.customSplit || !userSplit.customSplit.schedule) {
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
       const splits = {}
 
@@ -143,7 +145,7 @@ const SplitComparison = ({ workouts }) => {
       
       // Get the planned split for this day (1-7 corresponds to Sunday-Saturday)
       const dayNumber = dayOfWeek === 0 ? 7 : dayOfWeek // Convert Sunday from 0 to 7
-      const plannedSplit = userSplit.schedule[dayNumber]
+      const plannedSplit = userSplit.customSplit?.schedule?.[dayNumber]
       
       if (!plannedSplit || !plannedSplit.name || plannedSplit.name === 'Rest') {
         return // Skip rest days or undefined splits
@@ -372,39 +374,79 @@ const SplitComparison = ({ workouts }) => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-gray-800 rounded-xl p-3 md:p-4 text-center border border-gray-700">
             <div className="text-xl md:text-2xl font-bold text-blue-400 mb-1">
-              {Object.keys(userSplit.schedule || {}).filter(day => 
-                userSplit.schedule[day]?.name !== 'Rest' && userSplit.schedule[day]?.muscleGroups?.length > 0
-              ).length || 6}
+              {(() => {
+                if (!userSplit?.customSplit?.schedule) return 0
+                return Object.values(userSplit.customSplit.schedule).filter(day => 
+                  day?.name && day.name !== 'Rest' && day.name.trim() !== ''
+                ).length
+              })()}
             </div>
             <div className="text-gray-400 text-xs">Training</div>
           </div>
           <div className="bg-gray-800 rounded-xl p-3 md:p-4 text-center border border-gray-700">
             <div className="text-xl md:text-2xl font-bold text-green-400 mb-1">
-              {7 - (Object.keys(userSplit.schedule || {}).filter(day => 
-                userSplit.schedule[day]?.name !== 'Rest' && userSplit.schedule[day]?.muscleGroups?.length > 0
-              ).length || 6)}
+              {(() => {
+                if (!userSplit?.customSplit?.schedule) return 7
+                const trainingDays = Object.values(userSplit.customSplit.schedule).filter(day => 
+                  day?.name && day.name !== 'Rest' && day.name.trim() !== ''
+                ).length
+                return 7 - trainingDays
+              })()}
             </div>
             <div className="text-gray-400 text-xs">Rest</div>
           </div>
           <div className="bg-gray-800 rounded-xl p-3 md:p-4 text-center border border-gray-700">
             <div className="text-xl md:text-2xl font-bold text-purple-400 mb-1">
               {(() => {
+                if (!userSplit?.customSplit?.schedule) return 0
                 const allMuscleGroups = new Set()
-                Object.values(userSplit.schedule || {}).forEach(day => {
-                  if (day.muscleGroups) {
-                    day.muscleGroups.forEach(mg => allMuscleGroups.add(mg))
+                Object.values(userSplit.customSplit.schedule).forEach(day => {
+                  if (day?.muscles && Array.isArray(day.muscles)) {
+                    day.muscles.forEach(muscle => allMuscleGroups.add(muscle))
                   }
                 })
-                return allMuscleGroups.size || 8
+                return allMuscleGroups.size
               })()}
             </div>
             <div className="text-gray-400 text-xs">Muscles</div>
           </div>
           <div className="bg-gray-800 rounded-xl p-3 md:p-4 text-center border border-gray-700">
             <div className="text-xl md:text-2xl font-bold text-yellow-400 mb-1">
-              {userSplit.type === 'Push/Pull/Legs' ? '2x' : 
-               userSplit.type === 'Upper/Lower' ? '2x' :
-               userSplit.type === 'Full Body' ? '3x' : '2x'}
+              {(() => {
+                if (!userSplit?.customSplit?.schedule) return '0x'
+                
+                // Count how many times each muscle appears in the week
+                const muscleFrequency = {}
+                Object.values(userSplit.customSplit.schedule).forEach(day => {
+                  if (day?.muscles && Array.isArray(day.muscles)) {
+                    day.muscles.forEach(muscle => {
+                      muscleFrequency[muscle] = (muscleFrequency[muscle] || 0) + 1
+                    })
+                  }
+                })
+                
+                // Get the most common frequency (mode) - this represents the typical training frequency
+                const frequencies = Object.values(muscleFrequency)
+                if (frequencies.length === 0) return '0x'
+                
+                // Count frequency occurrences
+                const frequencyCount = {}
+                frequencies.forEach(freq => {
+                  frequencyCount[freq] = (frequencyCount[freq] || 0) + 1
+                })
+                
+                // Find the most common frequency (mode)
+                let maxCount = 0
+                let mostCommonFrequency = 0
+                Object.entries(frequencyCount).forEach(([freq, count]) => {
+                  if (count > maxCount) {
+                    maxCount = count
+                    mostCommonFrequency = parseInt(freq)
+                  }
+                })
+                
+                return `${mostCommonFrequency}x`
+              })()}
             </div>
             <div className="text-gray-400 text-xs">Frequency</div>
           </div>
@@ -431,92 +473,110 @@ const SplitComparison = ({ workouts }) => {
             <>
               {/* Mobile: Vertical List */}
               <div className="block md:hidden space-y-3">
-            {[
-              { day: 'Monday', name: 'Push', muscles: ['Chest', 'Shoulders', 'Triceps'] },
-              { day: 'Tuesday', name: 'Pull', muscles: ['Back', 'Biceps'] },
-              { day: 'Wednesday', name: 'Legs', muscles: ['Quads', 'Hamstrings', 'Glutes'] },
-              { day: 'Thursday', name: 'Push', muscles: ['Chest', 'Shoulders', 'Triceps'] },
-              { day: 'Friday', name: 'Pull', muscles: ['Back', 'Biceps'] },
-              { day: 'Saturday', name: 'Legs', muscles: ['Quads', 'Hamstrings', 'Glutes'] },
-              { day: 'Sunday', name: 'Rest', muscles: [] }
-            ].map((dayInfo, index) => {
-              const isRest = dayInfo.name === 'Rest'
-              const actualDayInfo = userSplit.schedule?.[Object.keys(userSplit.schedule || {})[index]] || dayInfo
-              
-              return (
-                <div key={dayInfo.day} className={`p-4 rounded-xl flex items-center justify-between ${
-                  isRest 
-                    ? 'bg-gray-700/50 border border-gray-600' 
-                    : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30'
-                }`}>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <span className="text-white font-medium">{dayInfo.day}</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        isRest ? 'bg-gray-600 text-gray-400' : 'bg-blue-500/30 text-blue-400'
+                {(() => {
+                  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                  
+                  try {
+                    return dayNames.map((dayName, index) => {
+                      const dayNumber = index === 6 ? 7 : index + 1 // Convert Sunday to 7, others to 1-6
+                      const actualDayInfo = userSplit?.customSplit?.schedule?.[dayNumber]
+                      
+                      const dayInfo = {
+                        day: dayName,
+                        name: actualDayInfo?.name || 'Rest',
+                        muscles: Array.isArray(actualDayInfo?.muscles) ? actualDayInfo.muscles : []
+                      }
+                      
+                      const isRest = dayInfo.name === 'Rest'
+                  
+                    return (
+                      <div key={dayInfo.day} className={`p-4 rounded-xl flex items-center justify-between ${
+                        isRest 
+                          ? 'bg-gray-700/50 border border-gray-600' 
+                          : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30'
                       }`}>
-                        {actualDayInfo.name || dayInfo.name}
-                      </span>
-                    </div>
-                    {!isRest && (
-                      <div className="flex flex-wrap gap-1">
-                        {(actualDayInfo.muscleGroups || dayInfo.muscles).map((muscle, idx) => (
-                          <span key={idx} className="text-xs text-gray-400 bg-gray-700/50 rounded px-2 py-1">
-                            {muscle}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Desktop: Grid */}
-          <div className="hidden md:grid grid-cols-7 gap-3">
-            {[
-              { day: 'Mon', name: 'Push', muscles: ['Chest', 'Shoulders', 'Triceps'] },
-              { day: 'Tue', name: 'Pull', muscles: ['Back', 'Biceps'] },
-              { day: 'Wed', name: 'Legs', muscles: ['Quads', 'Hamstrings', 'Glutes'] },
-              { day: 'Thu', name: 'Push', muscles: ['Chest', 'Shoulders', 'Triceps'] },
-              { day: 'Fri', name: 'Pull', muscles: ['Back', 'Biceps'] },
-              { day: 'Sat', name: 'Legs', muscles: ['Quads', 'Hamstrings', 'Glutes'] },
-              { day: 'Sun', name: 'Rest', muscles: [] }
-            ].map((dayInfo, index) => {
-              const isRest = dayInfo.name === 'Rest'
-              const actualDayInfo = userSplit.schedule?.[Object.keys(userSplit.schedule || {})[index]] || dayInfo
-              
-              return (
-                <div key={dayInfo.day} className={`p-4 rounded-xl text-center transition-all duration-200 ${
-                  isRest 
-                    ? 'bg-gray-700/50 border border-gray-600' 
-                    : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 hover:border-blue-400/50'
-                }`}>
-                  <div className="text-xs font-medium text-gray-400 mb-2">
-                    {dayInfo.day}
-                  </div>
-                  <div className={`text-sm font-bold mb-2 ${
-                    isRest ? 'text-gray-500' : 'text-blue-400'
-                  }`}>
-                    {actualDayInfo.name || dayInfo.name}
-                  </div>
-                  {!isRest && (
-                    <div className="space-y-1">
-                      {(actualDayInfo.muscleGroups || dayInfo.muscles).slice(0, 2).map((muscle, idx) => (
-                        <div key={idx} className="text-xs text-gray-400 bg-gray-700/50 rounded px-2 py-1">
-                          {muscle}
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <span className="text-white font-medium">{dayInfo.day}</span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              isRest ? 'bg-gray-600 text-gray-400' : 'bg-blue-500/30 text-blue-400'
+                            }`}>
+                              {dayInfo.name}
+                            </span>
+                          </div>
+                          {!isRest && dayInfo.muscles.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {dayInfo.muscles.map((muscle, idx) => (
+                                <span key={idx} className="text-xs text-gray-400 bg-gray-700/50 rounded px-2 py-1">
+                                  {muscle}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      ))}
-                      {(actualDayInfo.muscleGroups || dayInfo.muscles).length > 2 && (
-                        <div className="text-xs text-gray-500">+{(actualDayInfo.muscleGroups || dayInfo.muscles).length - 2} more</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                      </div>
+                    )
+                  })
+                  } catch (error) {
+                    console.error('Error rendering mobile schedule:', error)
+                    return <div className="text-red-400 text-sm">Error loading schedule</div>
+                  }
+                })()}
+              </div>
+
+              {/* Desktop: Grid */}
+              <div className="hidden md:grid grid-cols-7 gap-3">
+                {(() => {
+                  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                  
+                  try {
+                    return dayNames.map((dayAbbr, index) => {
+                      const dayNumber = index === 6 ? 7 : index + 1 // Convert Sunday to 7, others to 1-6
+                      const actualDayInfo = userSplit?.customSplit?.schedule?.[dayNumber]
+                      
+                      const dayInfo = {
+                        day: dayAbbr,
+                        name: actualDayInfo?.name || 'Rest',
+                        muscles: Array.isArray(actualDayInfo?.muscles) ? actualDayInfo.muscles : []
+                      }
+                    
+                    const isRest = dayInfo.name === 'Rest'
+                  
+                    return (
+                      <div key={dayInfo.day} className={`p-4 rounded-xl text-center transition-all duration-200 ${
+                        isRest 
+                          ? 'bg-gray-700/50 border border-gray-600' 
+                          : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 hover:border-blue-400/50'
+                      }`}>
+                        <div className="text-xs font-medium text-gray-400 mb-2">
+                          {dayInfo.day}
+                        </div>
+                        <div className={`text-sm font-bold mb-2 ${
+                          isRest ? 'text-gray-500' : 'text-blue-400'
+                        }`}>
+                          {dayInfo.name}
+                        </div>
+                        {!isRest && dayInfo.muscles.length > 0 && (
+                          <div className="space-y-1">
+                            {dayInfo.muscles.slice(0, 2).map((muscle, idx) => (
+                              <div key={idx} className="text-xs text-gray-400 bg-gray-700/50 rounded px-2 py-1">
+                                {muscle}
+                              </div>
+                            ))}
+                            {dayInfo.muscles.length > 2 && (
+                              <div className="text-xs text-gray-500">+{dayInfo.muscles.length - 2} more</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                  } catch (error) {
+                    console.error('Error rendering desktop schedule:', error)
+                    return <div className="text-red-400 text-sm col-span-7 text-center">Error loading schedule</div>
+                  }
+                })()}
+              </div>
             </>
           )}
         </div>
