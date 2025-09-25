@@ -72,7 +72,7 @@ const DateRangeSelector = ({ selectedRange, onRangeChange, showCustomDate = fals
         <div className="flex items-center space-x-2">
           <Calendar size={16} className="text-gray-400" />
           <span className="text-white text-sm font-medium">
-            {showCustomDate ? getDateRangeText(selectedRange) : ranges.find(r => r.value === selectedRange || (selectedRange === 'custom' && r.isCustom))?.label || 'Last 7 days'}
+            {ranges.find(r => r.value === selectedRange || (selectedRange === 'custom' && r.isCustom))?.label || 'Today'}
           </span>
         </div>
         <ChevronDown 
@@ -99,15 +99,8 @@ const DateRangeSelector = ({ selectedRange, onRangeChange, showCustomDate = fals
               >
                 <div className="flex items-center space-x-3">
                   {range.isCustom && <CalendarDays size={16} className="text-blue-400" />}
-                  <div>
-                    <div className="text-white text-sm font-medium group-hover:text-blue-400 transition-colors">
-                      {range.label}
-                    </div>
-                    {showCustomDate && !range.isCustom && (
-                      <div className="text-gray-400 text-xs mt-1">
-                        {range.isToday ? 'Current day only' : getDateRangeText(range.value)}
-                      </div>
-                    )}
+                  <div className="text-white text-sm font-medium group-hover:text-blue-400 transition-colors">
+                    {range.label}
                   </div>
                 </div>
                 {(selectedRange === range.value || (selectedRange === 'custom' && range.isCustom)) && (

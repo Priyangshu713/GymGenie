@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
 import AppleDropdown from '../components/AppleDropdown'
+import AppleCalendar from '../components/AppleCalendar'
 import { 
   BarChart3, 
   TrendingUp, 
@@ -26,6 +27,8 @@ import {
   subMonths,
   isWithinInterval,
   isAfter,
+  isToday,
+  isSameDay,
   format
 } from 'date-fns'
 
@@ -33,13 +36,43 @@ const Analytics = () => {
   const { workouts, stats } = useWorkout()
   const [timeRange, setTimeRange] = useState('30') // days
   const [selectedMetric, setSelectedMetric] = useState('workouts')
+  const [customDate, setCustomDate] = useState(null)
+  const [showDatePicker, setShowDatePicker] = useState(false)
+
+  const handleTimeRangeChange = (value) => {
+    if (value === 'custom') {
+      setShowDatePicker(true)
+    } else {
+      setTimeRange(value)
+      setCustomDate(null)
+    }
+  }
+
+  const handleDateSelect = (date) => {
+    setCustomDate(date)
+    setTimeRange('custom')
+    setShowDatePicker(false)
+  }
 
   const filteredWorkouts = useMemo(() => {
-    const cutoffDate = subDays(new Date(), parseInt(timeRange))
-    return workouts.filter(workout => 
-      isAfter(new Date(workout.date), cutoffDate)
-    )
-  }, [workouts, timeRange])
+    if (timeRange === '0') {
+      // Today only
+      return workouts.filter(workout => 
+        isToday(new Date(workout.date))
+      )
+    } else if (timeRange === 'custom' && customDate) {
+      // Specific date
+      return workouts.filter(workout => 
+        isSameDay(new Date(workout.date), new Date(customDate))
+      )
+    } else {
+      // Range of days
+      const cutoffDate = subDays(new Date(), parseInt(timeRange))
+      return workouts.filter(workout => 
+        isAfter(new Date(workout.date), cutoffDate)
+      )
+    }
+  }, [workouts, timeRange, customDate])
 
   const muscleGroupData = useMemo(() => {
     const groups = {}
@@ -176,12 +209,14 @@ const Analytics = () => {
             <Calendar size={16} className="text-gray-400" />
             <AppleDropdown
               value={timeRange}
-              onChange={(value) => setTimeRange(value)}
+              onChange={handleTimeRangeChange}
               options={[
+                { value: '0', label: 'Today' },
+                { value: '3', label: 'Last 3 days' },
                 { value: '7', label: 'Last 7 days' },
                 { value: '30', label: 'Last 30 days' },
-                { value: '90', label: 'Last 3 months' },
-                { value: '365', label: 'Last year' }
+                { value: '365', label: 'Last year' },
+                { value: 'custom', label: 'Select specific date' }
               ]}
               placeholder="Select time range"
               className="min-w-[140px]"
@@ -424,6 +459,16 @@ const Analytics = () => {
           })()}
         </div>
       </div>
+
+      {/* Apple Calendar Modal */}
+      {showDatePicker && (
+        <AppleCalendar
+          selectedDate={customDate || format(new Date(), 'yyyy-MM-dd')}
+          onDateSelect={handleDateSelect}
+          onClose={() => setShowDatePicker(false)}
+          workouts={workouts}
+        />
+      )}
     </div>
   )
 }

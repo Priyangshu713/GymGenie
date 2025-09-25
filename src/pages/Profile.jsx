@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import { useWorkout } from '../context/WorkoutContext'
 import AppleDropdown from '../components/AppleDropdown'
+import AppleCalendar from '../components/AppleCalendar'
 import { 
   User, 
   Settings, 
@@ -20,6 +21,7 @@ import {
   X
 } from 'lucide-react'
 import { setGeminiApiKey, getGeminiApiKey, generateWorkoutInsights, analyzeSplit, initializeAI } from '../services/aiService'
+import { format, subDays, isAfter, isToday, isSameDay } from 'date-fns'
 
 const Profile = () => {
   const { isDark, toggleTheme } = useTheme()
@@ -49,6 +51,22 @@ const Profile = () => {
   
   // Collapsible sections state
   const [aboutExpanded, setAboutExpanded] = useState(false)
+  
+  // PDF Export date range state
+  const [pdfTimeRange, setPdfTimeRange] = useState('30') // Default to last 30 days
+  const [pdfCustomDate, setPdfCustomDate] = useState(null)
+  const [showPdfDatePicker, setShowPdfDatePicker] = useState(false)
+  
+  // PDF Export split selection state
+  const [selectedSplitsForPdf, setSelectedSplitsForPdf] = useState([])
+  const [availableSplits, setAvailableSplits] = useState([])
+  
+  // Time period comparison state
+  const [enableTimeComparison, setEnableTimeComparison] = useState(false)
+  const [comparisonPeriod1, setComparisonPeriod1] = useState('30') // Current period
+  const [comparisonPeriod2, setComparisonPeriod2] = useState('90') // Comparison period
+  const [comparisonCustomDate1, setComparisonCustomDate1] = useState(null)
+  const [comparisonCustomDate2, setComparisonCustomDate2] = useState(null)
   
   // Workout split state
   const [workoutSplit, setWorkoutSplit] = useState(() => {
@@ -134,12 +152,135 @@ const Profile = () => {
     }
   }
 
+  // Update available splits when time range or workouts change
+  useEffect(() => {
+    const splits = getAvailableSplits()
+    setAvailableSplits(splits)
+    // Reset selected splits if they're no longer available
+    setSelectedSplitsForPdf(prev => prev.filter(split => splits.includes(split)))
+  }, [pdfTimeRange, pdfCustomDate, workouts])
+
   const handleSaveApiKey = () => {
     if (apiKey.trim()) {
       setGeminiApiKey(apiKey.trim())
       setApiKeySaved(true)
       setTimeout(() => setApiKeySaved(false), 3000)
     }
+  }
+
+  // PDF Export date range handlers
+  const handlePdfTimeRangeChange = (value) => {
+    if (value === 'custom') {
+      setShowPdfDatePicker(true)
+    } else {
+      setPdfTimeRange(value)
+      setPdfCustomDate(null)
+    }
+  }
+
+  const handlePdfDateSelect = (date) => {
+    setPdfCustomDate(date)
+    setPdfTimeRange('custom')
+    setShowPdfDatePicker(false)
+  }
+
+  // Handle split selection for PDF
+  const handleSplitSelection = (splitName) => {
+    setSelectedSplitsForPdf(prev => {
+      if (prev.includes(splitName)) {
+        return prev.filter(s => s !== splitName)
+      } else {
+        return [...prev, splitName]
+      }
+    })
+  }
+
+  // Filter workouts based on selected PDF time range
+  const getFilteredWorkoutsForPdf = () => {
+    if (pdfTimeRange === '0') {
+      // Today only
+      return workouts.filter(workout => 
+        isToday(new Date(workout.date))
+      )
+    } else if (pdfTimeRange === 'custom' && pdfCustomDate) {
+      // Specific date
+      return workouts.filter(workout => 
+        isSameDay(new Date(workout.date), new Date(pdfCustomDate))
+      )
+    } else {
+      // Range of days
+      const cutoffDate = subDays(new Date(), parseInt(pdfTimeRange))
+      return workouts.filter(workout => 
+        isAfter(new Date(workout.date), cutoffDate)
+      )
+    }
+  }
+
+  // Get workouts from a specific time period for comparison
+  const getWorkoutsFromTimePeriod = (periodType, customDate = null, periodNumber = 1) => {
+    const now = new Date()
+    let startDate, endDate
+    
+    if (periodType === 'custom' && customDate) {
+      // For custom date, get that specific day
+      startDate = new Date(customDate)
+      endDate = new Date(customDate)
+      endDate.setDate(endDate.getDate() + 1)
+    } else {
+      const days = parseInt(periodType)
+      
+      if (periodNumber === 1) {
+        // Current period (most recent)
+        endDate = now
+        startDate = subDays(now, days)
+      } else {
+        // Previous period (going back further)
+        endDate = subDays(now, days * (periodNumber - 1))
+        startDate = subDays(endDate, days)
+      }
+    }
+    
+    return workouts.filter(workout => {
+      const workoutDate = new Date(workout.date)
+      return workoutDate >= startDate && workoutDate < endDate
+    })
+  }
+
+  // Get available splits from filtered workouts
+  const getAvailableSplits = () => {
+    const filteredWorkouts = getFilteredWorkoutsForPdf()
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    const splits = new Set()
+    
+    // Get user's workout split from localStorage
+    let userSplit = null
+    try {
+      const savedSplit = localStorage.getItem('gymgenie-workout-split')
+      userSplit = savedSplit ? JSON.parse(savedSplit) : null
+    } catch (error) {
+      console.error('Error parsing workout split:', error)
+    }
+    
+    filteredWorkouts.forEach(workout => {
+      const dayOfWeek = new Date(workout.date).getDay()
+      const dayName = dayNames[dayOfWeek]
+      
+      let key = dayName
+      
+      // If user has a configured split, use it
+      if (userSplit && userSplit.schedule) {
+        const dayNumber = dayOfWeek === 0 ? 7 : dayOfWeek // Convert Sunday from 0 to 7
+        const plannedSplit = userSplit.schedule[dayNumber]
+        
+        if (plannedSplit && plannedSplit.name && plannedSplit.name !== 'Rest') {
+          key = `${dayName} (${plannedSplit.name})`
+        }
+      }
+      
+      splits.add(key)
+    })
+    
+    return Array.from(splits).sort()
   }
 
   // Workout split functions
@@ -298,15 +439,18 @@ const Profile = () => {
       const button = document.querySelector('.export-report-ai-btn')
       if (button) button.textContent = 'Generating AI Insights...'
 
+      // Get filtered workouts based on selected time range
+      const filteredWorkouts = getFilteredWorkoutsForPdf()
+
       // Generate AI insights for the report
       let aiInsights = null
       let splitAnalysisForReport = null
       
       try {
         // Generate workout insights if we have workout data
-        if (workouts && workouts.length > 0) {
+        if (filteredWorkouts && filteredWorkouts.length > 0) {
           const insightsResult = await generateWorkoutInsights({
-            workouts: workouts,
+            workouts: filteredWorkouts,
             stats: stats,
             measurements: measurements,
             workoutSplit: workoutSplit
@@ -326,7 +470,7 @@ const Profile = () => {
         // Continue without AI insights if they fail
       }
 
-      await generatePDFReport(true, aiInsights, splitAnalysisForReport)
+      await generatePDFReport(true, aiInsights, splitAnalysisForReport, filteredWorkouts, enableTimeComparison)
     } catch (error) {
       console.error('Error generating professional report with AI:', error)
       alert('Failed to generate professional report with AI analysis. Please try again.')
@@ -344,7 +488,10 @@ const Profile = () => {
       const button = document.querySelector('.export-report-basic-btn')
       if (button) button.textContent = 'Generating PDF...'
 
-      await generatePDFReport(false, null, null)
+      // Get filtered workouts based on selected time range
+      const filteredWorkouts = getFilteredWorkoutsForPdf()
+
+      await generatePDFReport(false, null, null, filteredWorkouts, enableTimeComparison)
     } catch (error) {
       console.error('Error generating basic professional report:', error)
       alert('Failed to generate professional report. Please try again.')
@@ -356,7 +503,7 @@ const Profile = () => {
   }
 
   // Unified PDF generation function
-  const generatePDFReport = async (includeAI, aiInsights, splitAnalysisForReport) => {
+  const generatePDFReport = async (includeAI, aiInsights, splitAnalysisForReport, filteredWorkouts = workouts, includeTimeComparison = false) => {
     try {
       // Create comprehensive report data
       const reportData = {
@@ -368,11 +515,11 @@ const Profile = () => {
           workoutSplit: workoutSplit
         },
         summary: {
-          totalWorkouts: workouts.length,
-          totalExercises: workouts.reduce((sum, w) => sum + w.exercises.length, 0),
-          totalSets: workouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.length, 0), 0),
-          totalVolume: workouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.weight || 0) * (set.reps || 0), 0), 0), 0),
-          avgDifficulty: workouts.length > 0 ? workouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.difficulty || 0), 0) / Math.max(e.sets.length, 1), 0) / Math.max(w.exercises.length, 1), 0) / workouts.length : 0
+          totalWorkouts: filteredWorkouts.length,
+          totalExercises: filteredWorkouts.reduce((sum, w) => sum + w.exercises.length, 0),
+          totalSets: filteredWorkouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.length, 0), 0),
+          totalVolume: filteredWorkouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.weight || 0) * (set.reps || 0), 0), 0), 0),
+          avgDifficulty: filteredWorkouts.length > 0 ? filteredWorkouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.difficulty || 0), 0) / Math.max(e.sets.length, 1), 0) / Math.max(w.exercises.length, 1), 0) / filteredWorkouts.length : 0
         },
         muscleGroupDistribution: {},
         exerciseTypeDistribution: { strength: 0, cardio: 0 },
@@ -389,6 +536,21 @@ const Profile = () => {
         // Split comparison data
         splitComparison: {},
         splitProgress: {},
+        // Time period comparison data
+        timeComparison: includeTimeComparison ? {
+          enabled: true,
+          currentPeriod: {
+            label: `Last ${comparisonPeriod1} days`,
+            workouts: getWorkoutsFromTimePeriod(comparisonPeriod1, null, 1),
+            data: {}
+          },
+          previousPeriod: {
+            label: `${comparisonPeriod2} days before that`,
+            workouts: getWorkoutsFromTimePeriod(comparisonPeriod2, null, 2),
+            data: {}
+          },
+          comparison: {}
+        } : { enabled: false },
         // AI-generated insights (only include if requested)
         aiInsights: includeAI ? aiInsights : null,
         splitAnalysis: includeAI ? splitAnalysisForReport : null,
@@ -396,7 +558,7 @@ const Profile = () => {
       }
 
       // Calculate comprehensive analytics
-      workouts.forEach(workout => {
+      filteredWorkouts.forEach(workout => {
         const workoutDate = new Date(workout.date)
         const dayName = workoutDate.toLocaleDateString('en-US', { weekday: 'long' })
         reportData.workoutFrequency[dayName]++
@@ -461,7 +623,7 @@ const Profile = () => {
         const weekEnd = new Date(weekStart)
         weekEnd.setDate(weekEnd.getDate() + 6)
         
-        const weekWorkouts = workouts.filter(w => {
+        const weekWorkouts = filteredWorkouts.filter(w => {
           const workoutDate = new Date(w.date)
           return workoutDate >= weekStart && workoutDate <= weekEnd
         })
@@ -478,7 +640,58 @@ const Profile = () => {
         })
       }
 
-      // Calculate split comparison data using the same logic as SplitComparison component
+      // Intelligent exercise grouping function for PDF comparison
+      const getExerciseCategory = (exerciseName) => {
+        const name = exerciseName.toLowerCase()
+        
+        // Chest exercises
+        if (name.includes('bench') || name.includes('press') && (name.includes('chest') || name.includes('incline') || name.includes('decline'))) {
+          if (name.includes('incline')) return 'incline_press'
+          if (name.includes('decline')) return 'decline_press'
+          return 'bench_press'
+        }
+        if (name.includes('fly') || name.includes('flye')) return 'chest_fly'
+        if (name.includes('dip') && !name.includes('tricep')) return 'chest_dip'
+        
+        // Back exercises
+        if (name.includes('pulldown') || name.includes('lat pull')) return 'lat_pulldown'
+        if (name.includes('row') && !name.includes('upright')) return 'row'
+        if (name.includes('pullup') || name.includes('pull up') || name.includes('chin up')) return 'pullup'
+        if (name.includes('deadlift')) return 'deadlift'
+        
+        // Shoulder exercises
+        if (name.includes('shoulder press') || name.includes('overhead press') || name.includes('military press')) return 'shoulder_press'
+        if (name.includes('lateral raise') || name.includes('side raise')) return 'lateral_raise'
+        if (name.includes('rear delt') || name.includes('reverse fly')) return 'rear_delt'
+        if (name.includes('upright row')) return 'upright_row'
+        
+        // Bicep exercises
+        if (name.includes('curl') && (name.includes('bicep') || name.includes('barbell') || name.includes('dumbbell') || name.includes('hammer'))) {
+          if (name.includes('hammer')) return 'hammer_curl'
+          return 'bicep_curl'
+        }
+        
+        // Tricep exercises
+        if (name.includes('tricep') || name.includes('overhead extension') || name.includes('skull crusher')) return 'tricep_extension'
+        if (name.includes('dip') && name.includes('tricep')) return 'tricep_dip'
+        
+        // Leg exercises
+        if (name.includes('squat')) return 'squat'
+        if (name.includes('leg press')) return 'leg_press'
+        if (name.includes('lunge')) return 'lunge'
+        if (name.includes('leg curl')) return 'leg_curl'
+        if (name.includes('leg extension')) return 'leg_extension'
+        if (name.includes('calf raise')) return 'calf_raise'
+        
+        // Core exercises
+        if (name.includes('crunch') || name.includes('sit up')) return 'crunch'
+        if (name.includes('plank')) return 'plank'
+        
+        // Default: return the original name if no category matches
+        return exerciseName.toLowerCase().replace(/[^a-z0-9]/g, '_')
+      }
+
+      // Calculate split comparison data with intelligent exercise grouping
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
       const splits = {}
       
@@ -491,7 +704,7 @@ const Profile = () => {
         console.error('Error parsing workout split:', error)
       }
       
-      workouts.forEach(workout => {
+      filteredWorkouts.forEach(workout => {
         const dayOfWeek = new Date(workout.date).getDay()
         const dayName = dayNames[dayOfWeek]
         
@@ -531,6 +744,7 @@ const Profile = () => {
 
         workout.exercises.forEach(exercise => {
           const exerciseName = exercise.name || 'Unknown Exercise'
+          const exerciseCategory = getExerciseCategory(exerciseName)
           const muscleGroup = exercise.muscleGroup || 'General'
           
           let exerciseVolume = 0
@@ -568,14 +782,22 @@ const Profile = () => {
           sessionMuscleGroups[muscleGroup].reps += exerciseReps
           sessionMuscleGroups[muscleGroup].maxWeight = Math.max(sessionMuscleGroups[muscleGroup].maxWeight, exerciseMaxWeight)
 
-          // Track exercise data
-          sessionExercises[exerciseName] = {
-            muscleGroup: muscleGroup,
-            volume: exerciseVolume,
-            sets: exerciseSets,
-            reps: exerciseReps,
-            maxWeight: exerciseMaxWeight
+          // Track exercise data by category for intelligent comparison
+          if (!sessionExercises[exerciseCategory]) {
+            sessionExercises[exerciseCategory] = {
+              muscleGroup: muscleGroup,
+              volume: 0,
+              sets: 0,
+              reps: 0,
+              maxWeight: 0,
+              exerciseNames: new Set()
+            }
           }
+          sessionExercises[exerciseCategory].volume += exerciseVolume
+          sessionExercises[exerciseCategory].sets += exerciseSets
+          sessionExercises[exerciseCategory].reps += exerciseReps
+          sessionExercises[exerciseCategory].maxWeight = Math.max(sessionExercises[exerciseCategory].maxWeight, exerciseMaxWeight)
+          sessionExercises[exerciseCategory].exerciseNames.add(exerciseName)
 
           // Update split totals for muscle groups
           if (!splits[key].muscleGroups[muscleGroup]) {
@@ -592,21 +814,23 @@ const Profile = () => {
           splits[key].muscleGroups[muscleGroup].totalReps += exerciseReps
           splits[key].muscleGroups[muscleGroup].maxWeight = Math.max(splits[key].muscleGroups[muscleGroup].maxWeight, exerciseMaxWeight)
 
-          // Update split totals for exercises
-          if (!splits[key].exercises[exerciseName]) {
-            splits[key].exercises[exerciseName] = {
+          // Update split totals for exercise categories
+          if (!splits[key].exercises[exerciseCategory]) {
+            splits[key].exercises[exerciseCategory] = {
               muscleGroup: muscleGroup,
               totalVolume: 0,
               totalSets: 0,
               totalReps: 0,
               maxWeight: 0,
-              sessions: 0
+              sessions: 0,
+              exerciseNames: new Set()
             }
           }
-          splits[key].exercises[exerciseName].totalVolume += exerciseVolume
-          splits[key].exercises[exerciseName].totalSets += exerciseSets
-          splits[key].exercises[exerciseName].totalReps += exerciseReps
-          splits[key].exercises[exerciseName].maxWeight = Math.max(splits[key].exercises[exerciseName].maxWeight, exerciseMaxWeight)
+          splits[key].exercises[exerciseCategory].totalVolume += exerciseVolume
+          splits[key].exercises[exerciseCategory].totalSets += exerciseSets
+          splits[key].exercises[exerciseCategory].totalReps += exerciseReps
+          splits[key].exercises[exerciseCategory].maxWeight = Math.max(splits[key].exercises[exerciseCategory].maxWeight, exerciseMaxWeight)
+          splits[key].exercises[exerciseCategory].exerciseNames.add(exerciseName)
         })
 
         // Mark muscle groups as used in this session
@@ -614,9 +838,9 @@ const Profile = () => {
           splits[key].muscleGroups[muscleGroup].sessions += 1
         })
 
-        // Mark exercises as used in this session
-        Object.keys(sessionExercises).forEach(exerciseName => {
-          splits[key].exercises[exerciseName].sessions += 1
+        // Mark exercise categories as used in this session
+        Object.keys(sessionExercises).forEach(exerciseCategory => {
+          splits[key].exercises[exerciseCategory].sessions += 1
         })
 
         splits[key].sessions.push({
@@ -651,27 +875,33 @@ const Profile = () => {
             }
           })
 
-          // Calculate exercise averages
+          // Calculate exercise averages with exercise names
           const exercisesData = {}
-          Object.entries(split.exercises).forEach(([exercise, data]) => {
-            exercisesData[exercise] = {
+          Object.entries(split.exercises).forEach(([exerciseCategory, data]) => {
+            const exerciseNames = Array.from(data.exerciseNames)
+            exercisesData[exerciseCategory] = {
               muscleGroup: data.muscleGroup,
               avgVolume: Math.round(data.totalVolume / data.sessions),
               avgSets: Math.round(data.totalSets / data.sessions),
               avgReps: Math.round(data.totalReps / data.sessions),
               maxWeight: data.maxWeight,
-              sessions: data.sessions
+              sessions: data.sessions,
+              exerciseNames: exerciseNames,
+              displayName: exerciseNames.length === 1 ? exerciseNames[0] : `${exerciseNames[0]} (+ ${exerciseNames.length - 1} similar)`
             }
           })
 
-          reportData.splitComparison[key] = {
-            avgVolume: Math.round(split.totalVolume / sessionCount),
-            avgSets: Math.round(split.totalSets / sessionCount),
-            avgReps: Math.round(split.totalReps / sessionCount),
-            maxWeight: split.maxWeight,
-            sessions: sessionCount,
-            muscleGroups: muscleGroupsData,
-            exercises: exercisesData
+          // Only include this split if it's selected for PDF or if no splits are selected (show all)
+          if (selectedSplitsForPdf.length === 0 || selectedSplitsForPdf.includes(key)) {
+            reportData.splitComparison[key] = {
+              avgVolume: Math.round(split.totalVolume / sessionCount),
+              avgSets: Math.round(split.totalSets / sessionCount),
+              avgReps: Math.round(split.totalReps / sessionCount),
+              maxWeight: split.maxWeight,
+              sessions: sessionCount,
+              muscleGroups: muscleGroupsData,
+              exercises: exercisesData
+            }
           }
           
           // Calculate progress trend (last 4 sessions)
@@ -684,14 +914,17 @@ const Profile = () => {
             const lastVolume = recentSessions[recentSessions.length - 1].volume
             const progressPercent = firstVolume > 0 ? ((lastVolume - firstVolume) / firstVolume) * 100 : 0
             
-            reportData.splitProgress[key] = {
-              trend: progressPercent > 5 ? 'Improving' : progressPercent < -5 ? 'Declining' : 'Stable',
-              progressPercent: Math.round(progressPercent),
-              recentSessions: recentSessions.map(s => ({
-                date: new Date(s.date).toLocaleDateString(),
-                volume: s.volume,
-                sets: s.sets
-              }))
+            // Only include progress data if this split is selected
+            if (selectedSplitsForPdf.length === 0 || selectedSplitsForPdf.includes(key)) {
+              reportData.splitProgress[key] = {
+                trend: progressPercent > 5 ? 'Improving' : progressPercent < -5 ? 'Declining' : 'Stable',
+                progressPercent: Math.round(progressPercent),
+                recentSessions: recentSessions.map(s => ({
+                  date: new Date(s.date).toLocaleDateString(),
+                  volume: s.volume,
+                  sets: s.sets
+                }))
+              }
             }
           }
         }
@@ -702,6 +935,60 @@ const Profile = () => {
         .sort(([,a], [,b]) => b - a)
         .slice(0, 10)
       reportData.topExercises = Object.fromEntries(sortedExercises)
+
+      // Calculate time period comparison data if enabled
+      if (includeTimeComparison && reportData.timeComparison.enabled) {
+        const calculatePeriodStats = (workouts) => {
+          return {
+            totalWorkouts: workouts.length,
+            totalVolume: workouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.weight || 0) * (set.reps || 0), 0), 0), 0),
+            totalSets: workouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.length, 0), 0),
+            avgDifficulty: workouts.length > 0 ? workouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.difficulty || 0), 0) / Math.max(e.sets.length, 1), 0) / Math.max(w.exercises.length, 1), 0) / workouts.length : 0,
+            muscleGroups: {},
+            topExercises: {}
+          }
+        }
+
+        // Calculate stats for both periods
+        reportData.timeComparison.currentPeriod.data = calculatePeriodStats(reportData.timeComparison.currentPeriod.workouts)
+        reportData.timeComparison.previousPeriod.data = calculatePeriodStats(reportData.timeComparison.previousPeriod.workouts)
+
+        // Calculate muscle group data for both periods
+        const calculateMuscleGroupData = (workouts) => {
+          const muscleGroups = {}
+          workouts.forEach(workout => {
+            workout.exercises.forEach(exercise => {
+              if (exercise.muscleGroup) {
+                if (!muscleGroups[exercise.muscleGroup]) {
+                  muscleGroups[exercise.muscleGroup] = { volume: 0, sets: 0 }
+                }
+                const exerciseVolume = exercise.sets.reduce((sum, set) => sum + (set.weight || 0) * (set.reps || 0), 0)
+                muscleGroups[exercise.muscleGroup].volume += exerciseVolume
+                muscleGroups[exercise.muscleGroup].sets += exercise.sets.length
+              }
+            })
+          })
+          return muscleGroups
+        }
+
+        reportData.timeComparison.currentPeriod.data.muscleGroups = calculateMuscleGroupData(reportData.timeComparison.currentPeriod.workouts)
+        reportData.timeComparison.previousPeriod.data.muscleGroups = calculateMuscleGroupData(reportData.timeComparison.previousPeriod.workouts)
+
+        // Calculate comparison metrics
+        const current = reportData.timeComparison.currentPeriod.data
+        const previous = reportData.timeComparison.previousPeriod.data
+        
+        reportData.timeComparison.comparison = {
+          workoutChange: current.totalWorkouts - previous.totalWorkouts,
+          workoutChangePercent: previous.totalWorkouts > 0 ? ((current.totalWorkouts - previous.totalWorkouts) / previous.totalWorkouts * 100) : 0,
+          volumeChange: current.totalVolume - previous.totalVolume,
+          volumeChangePercent: previous.totalVolume > 0 ? ((current.totalVolume - previous.totalVolume) / previous.totalVolume * 100) : 0,
+          setsChange: current.totalSets - previous.totalSets,
+          setsChangePercent: previous.totalSets > 0 ? ((current.totalSets - previous.totalSets) / previous.totalSets * 100) : 0,
+          difficultyChange: current.avgDifficulty - previous.avgDifficulty,
+          trend: current.totalVolume > previous.totalVolume ? 'improving' : current.totalVolume < previous.totalVolume ? 'declining' : 'stable'
+        }
+      }
 
       // Generate HTML report
       const htmlContent = generateProfessionalReportHTML(reportData)
@@ -868,6 +1155,107 @@ const Profile = () => {
                 <h2>🔄 Split Comparison Analysis</h2>
                 <p style="color: #6b7280; margin-bottom: 30px;">Compare your performance across different workout splits and days</p>
                 
+                <!-- Intelligent Exercise Comparison -->
+                ${(() => {
+                    const splitEntries = Object.entries(data.splitComparison);
+                    if (splitEntries.length < 2) return '';
+                    
+                    // Find common exercise categories across splits
+                    const commonExercises = {};
+                    splitEntries.forEach(([splitName, splitData]) => {
+                        Object.keys(splitData.exercises || {}).forEach(exerciseCategory => {
+                            if (!commonExercises[exerciseCategory]) {
+                                commonExercises[exerciseCategory] = [];
+                            }
+                            commonExercises[exerciseCategory].push({
+                                splitName,
+                                data: splitData.exercises[exerciseCategory]
+                            });
+                        });
+                    });
+                    
+                    // Filter to only show exercises that appear in multiple splits
+                    const comparableExercises = Object.entries(commonExercises)
+                        .filter(([_, splits]) => splits.length >= 2)
+                        .slice(0, 3); // Show top 3 comparable exercises
+                    
+                    if (comparableExercises.length === 0) {
+                        return `
+                        <div class="card" style="background: #fef3c7; border-left: 4px solid #f59e0b; margin-bottom: 20px;">
+                            <h4 style="color: #92400e; margin: 0 0 10px 0;">⚠️ No Comparable Exercises Found</h4>
+                            <p style="color: #78350f; font-size: 0.9rem; margin: 0;">
+                                Your workout splits contain different exercise types. Comparison is based on overall workout volume and intensity instead of specific exercises.
+                            </p>
+                        </div>`;
+                    }
+                    
+                    return `
+                    <div style="margin-bottom: 30px;">
+                        <h3 style="color: #1f2937; margin: 0 0 20px 0; font-size: 1.2rem;">🔄 Exercise Category Comparisons</h3>
+                        <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 20px;">
+                            Comparing similar exercises across different workout days/splits
+                        </p>
+                        ${comparableExercises.map(([exerciseCategory, splits]) => `
+                            <div class="card" style="margin-bottom: 20px; border-left: 4px solid #10b981;">
+                                <h4 style="color: #1f2937; margin: 0 0 15px 0; font-size: 1rem;">
+                                    ${splits[0].data.displayName}
+                                </h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                    ${splits.map(split => `
+                                        <div style="padding: 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                            <div style="font-weight: 600; color: #374151; margin-bottom: 8px; font-size: 0.9rem;">
+                                                ${split.splitName}
+                                            </div>
+                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem;">
+                                                <div>
+                                                    <div style="color: #6b7280;">Volume</div>
+                                                    <div style="font-weight: 600; color: #ef4444;">${Math.round(split.data.avgVolume)} kg</div>
+                                                </div>
+                                                <div>
+                                                    <div style="color: #6b7280;">Max Weight</div>
+                                                    <div style="font-weight: 600; color: #8b5cf6;">${split.data.maxWeight} kg</div>
+                                                </div>
+                                                <div>
+                                                    <div style="color: #6b7280;">Sets</div>
+                                                    <div style="font-weight: 600; color: #10b981;">${split.data.avgSets}</div>
+                                                </div>
+                                                <div>
+                                                    <div style="color: #6b7280;">Reps</div>
+                                                    <div style="font-weight: 600; color: #f59e0b;">${split.data.avgReps}</div>
+                                                </div>
+                                            </div>
+                                            ${split.data.exerciseNames.length > 1 ? `
+                                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+                                                    <div style="color: #6b7280; font-size: 0.7rem;">Variations:</div>
+                                                    <div style="color: #374151; font-size: 0.75rem;">${split.data.exerciseNames.join(', ')}</div>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                
+                                <!-- Performance Analysis -->
+                                ${(() => {
+                                    const bestVolume = Math.max(...splits.map(s => s.data.avgVolume));
+                                    const bestWeight = Math.max(...splits.map(s => s.data.maxWeight));
+                                    const bestVolumeDay = splits.find(s => s.data.avgVolume === bestVolume);
+                                    const bestWeightDay = splits.find(s => s.data.maxWeight === bestWeight);
+                                    
+                                    return `
+                                    <div style="margin-top: 15px; padding: 10px; background: #f0fdf4; border-radius: 6px; border-left: 3px solid #10b981;">
+                                        <div style="font-size: 0.8rem; color: #166534; font-weight: 600;">Performance Insights:</div>
+                                        <div style="font-size: 0.75rem; color: #15803d; margin-top: 4px;">
+                                            • Highest volume: <strong>${bestVolumeDay.splitName}</strong> (${Math.round(bestVolume)} kg)
+                                            <br>
+                                            • Highest weight: <strong>${bestWeightDay.splitName}</strong> (${bestWeight} kg)
+                                        </div>
+                                    </div>`;
+                                })()}
+                            </div>
+                        `).join('')}
+                    </div>`;
+                })()}
+                
                 <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 30px;">
                     ${Object.entries(data.splitComparison).map(([splitName, splitData]) => `
                         <div class="card" style="border-left: 4px solid #3b82f6;">
@@ -907,16 +1295,17 @@ const Profile = () => {
                                 </div>
                             ` : ''}
 
-                            <!-- Top Exercises -->
+                            <!-- Top Exercise Categories -->
                             ${splitData.exercises && Object.keys(splitData.exercises).length > 0 ? `
                                 <div>
-                                    <h5 style="color: #374151; margin: 0 0 10px 0; font-size: 0.9rem; font-weight: 600;">🏋️ Top Exercises</h5>
+                                    <h5 style="color: #374151; margin: 0 0 10px 0; font-size: 0.9rem; font-weight: 600;">🏋️ Exercise Categories</h5>
                                     <div style="display: grid; gap: 6px;">
-                                        ${Object.entries(splitData.exercises).slice(0, 5).map(([exercise, data]) => `
+                                        ${Object.entries(splitData.exercises).slice(0, 5).map(([exerciseCategory, data]) => `
                                             <div style="display: flex; justify-between; align-items: center; padding: 6px 10px; background: #fef7ff; border-radius: 4px; font-size: 0.75rem;">
                                                 <div>
-                                                    <div style="font-weight: 500; color: #1f2937;">${exercise}</div>
+                                                    <div style="font-weight: 500; color: #1f2937;">${data.displayName}</div>
                                                     <div style="color: #8b5cf6; font-size: 0.7rem; text-transform: capitalize;">${data.muscleGroup}</div>
+                                                    ${data.exerciseNames.length > 1 ? `<div style="color: #6b7280; font-size: 0.65rem;">Includes: ${data.exerciseNames.join(', ')}</div>` : ''}
                                                 </div>
                                                 <div style="text-align: right; color: #6b7280;">
                                                     <div><strong style="color: #8b5cf6;">${data.maxWeight || 0} kg</strong></div>
@@ -962,6 +1351,136 @@ const Profile = () => {
                                     </div>
                                 </div>
                             `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+            ` : ''}
+
+            ${data.timeComparison.enabled ? `
+            <div class="section">
+                <h2>⏰ Time Period Comparison</h2>
+                <p style="color: #6b7280; margin-bottom: 30px;">Compare your performance between different time periods to track long-term progress</p>
+                
+                <!-- Comparison Overview -->
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
+                    <div class="card" style="border-left: 4px solid #3b82f6;">
+                        <h4 style="color: #1f2937; margin: 0 0 15px 0; font-size: 1.1rem;">📊 ${data.timeComparison.currentPeriod.label}</h4>
+                        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.9rem;">
+                            <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                                <div style="color: #6b7280; font-size: 0.8rem;">Workouts</div>
+                                <div style="font-weight: 600; color: #3b82f6;">${data.timeComparison.currentPeriod.data.totalWorkouts}</div>
+                            </div>
+                            <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                                <div style="color: #6b7280; font-size: 0.8rem;">Total Volume</div>
+                                <div style="font-weight: 600; color: #ef4444;">${Math.round(data.timeComparison.currentPeriod.data.totalVolume)} kg</div>
+                            </div>
+                            <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                                <div style="color: #6b7280; font-size: 0.8rem;">Total Sets</div>
+                                <div style="font-weight: 600; color: #10b981;">${data.timeComparison.currentPeriod.data.totalSets}</div>
+                            </div>
+                            <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                                <div style="color: #6b7280; font-size: 0.8rem;">Avg Difficulty</div>
+                                <div style="font-weight: 600; color: #f59e0b;">${data.timeComparison.currentPeriod.data.avgDifficulty.toFixed(1)}/10</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="border-left: 4px solid #6b7280;">
+                        <h4 style="color: #1f2937; margin: 0 0 15px 0; font-size: 1.1rem;">📈 ${data.timeComparison.previousPeriod.label}</h4>
+                        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.9rem;">
+                            <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                                <div style="color: #6b7280; font-size: 0.8rem;">Workouts</div>
+                                <div style="font-weight: 600; color: #3b82f6;">${data.timeComparison.previousPeriod.data.totalWorkouts}</div>
+                            </div>
+                            <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                                <div style="color: #6b7280; font-size: 0.8rem;">Total Volume</div>
+                                <div style="font-weight: 600; color: #ef4444;">${Math.round(data.timeComparison.previousPeriod.data.totalVolume)} kg</div>
+                            </div>
+                            <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                                <div style="color: #6b7280; font-size: 0.8rem;">Total Sets</div>
+                                <div style="font-weight: 600; color: #10b981;">${data.timeComparison.previousPeriod.data.totalSets}</div>
+                            </div>
+                            <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                                <div style="color: #6b7280; font-size: 0.8rem;">Avg Difficulty</div>
+                                <div style="font-weight: 600; color: #f59e0b;">${data.timeComparison.previousPeriod.data.avgDifficulty.toFixed(1)}/10</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Progress Analysis -->
+                <div style="background: ${data.timeComparison.comparison.trend === 'improving' ? '#f0fdf4' : data.timeComparison.comparison.trend === 'declining' ? '#fef2f2' : '#f8fafc'}; border-left: 4px solid ${data.timeComparison.comparison.trend === 'improving' ? '#10b981' : data.timeComparison.comparison.trend === 'declining' ? '#ef4444' : '#6b7280'}; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+                    <h4 style="color: ${data.timeComparison.comparison.trend === 'improving' ? '#15803d' : data.timeComparison.comparison.trend === 'declining' ? '#dc2626' : '#374151'}; margin-top: 0;">
+                        📊 Progress Analysis: ${data.timeComparison.comparison.trend === 'improving' ? '📈 Improving' : data.timeComparison.comparison.trend === 'declining' ? '📉 Declining' : '➡️ Stable'}
+                    </h4>
+                    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div style="text-align: center; padding: 15px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 5px;">Workout Change</div>
+                            <div style="font-weight: 600; color: ${data.timeComparison.comparison.workoutChange >= 0 ? '#10b981' : '#ef4444'};">
+                                ${data.timeComparison.comparison.workoutChange >= 0 ? '+' : ''}${data.timeComparison.comparison.workoutChange}
+                                <span style="font-size: 0.8rem; margin-left: 5px;">(${data.timeComparison.comparison.workoutChangePercent >= 0 ? '+' : ''}${data.timeComparison.comparison.workoutChangePercent.toFixed(1)}%)</span>
+                            </div>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 5px;">Volume Change</div>
+                            <div style="font-weight: 600; color: ${data.timeComparison.comparison.volumeChange >= 0 ? '#10b981' : '#ef4444'};">
+                                ${data.timeComparison.comparison.volumeChange >= 0 ? '+' : ''}${Math.round(data.timeComparison.comparison.volumeChange)} kg
+                                <span style="font-size: 0.8rem; margin-left: 5px;">(${data.timeComparison.comparison.volumeChangePercent >= 0 ? '+' : ''}${data.timeComparison.comparison.volumeChangePercent.toFixed(1)}%)</span>
+                            </div>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 5px;">Sets Change</div>
+                            <div style="font-weight: 600; color: ${data.timeComparison.comparison.setsChange >= 0 ? '#10b981' : '#ef4444'};">
+                                ${data.timeComparison.comparison.setsChange >= 0 ? '+' : ''}${data.timeComparison.comparison.setsChange}
+                                <span style="font-size: 0.8rem; margin-left: 5px;">(${data.timeComparison.comparison.setsChangePercent >= 0 ? '+' : ''}${data.timeComparison.comparison.setsChangePercent.toFixed(1)}%)</span>
+                            </div>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 5px;">Difficulty Change</div>
+                            <div style="font-weight: 600; color: ${data.timeComparison.comparison.difficultyChange >= 0 ? '#10b981' : '#ef4444'};">
+                                ${data.timeComparison.comparison.difficultyChange >= 0 ? '+' : ''}${data.timeComparison.comparison.difficultyChange.toFixed(1)}
+                                <span style="font-size: 0.8rem; margin-left: 5px;">points</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Muscle Group Comparison -->
+                ${Object.keys(data.timeComparison.currentPeriod.data.muscleGroups).length > 0 ? `
+                    <div style="margin-bottom: 30px;">
+                        <h4 style="color: #1f2937; margin: 0 0 20px 0; font-size: 1.1rem;">💪 Muscle Group Progress</h4>
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                            ${Object.keys(data.timeComparison.currentPeriod.data.muscleGroups).map(muscle => {
+                                const current = data.timeComparison.currentPeriod.data.muscleGroups[muscle] || { volume: 0, sets: 0 };
+                                const previous = data.timeComparison.previousPeriod.data.muscleGroups[muscle] || { volume: 0, sets: 0 };
+                                const volumeChange = current.volume - previous.volume;
+                                const volumeChangePercent = previous.volume > 0 ? ((current.volume - previous.volume) / previous.volume * 100) : 0;
+                                const setsChange = current.sets - previous.sets;
+                                
+                                return `
+                                <div class="card" style="border-left: 4px solid #8b5cf6;">
+                                    <h5 style="color: #1f2937; margin: 0 0 15px 0; font-size: 1rem; text-transform: capitalize;">${muscle}</h5>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85rem;">
+                                        <div style="text-align: center; padding: 8px; background: #f8fafc; border-radius: 4px;">
+                                            <div style="color: #6b7280; font-size: 0.75rem;">Current Volume</div>
+                                            <div style="font-weight: 600; color: #ef4444;">${Math.round(current.volume)} kg</div>
+                                        </div>
+                                        <div style="text-align: center; padding: 8px; background: #f8fafc; border-radius: 4px;">
+                                            <div style="color: #6b7280; font-size: 0.75rem;">Previous Volume</div>
+                                            <div style="font-weight: 600; color: #6b7280;">${Math.round(previous.volume)} kg</div>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 10px; padding: 8px; background: ${volumeChange >= 0 ? '#f0fdf4' : '#fef2f2'}; border-radius: 4px; text-align: center;">
+                                        <div style="font-size: 0.8rem; color: ${volumeChange >= 0 ? '#15803d' : '#dc2626'}; font-weight: 600;">
+                                            ${volumeChange >= 0 ? '+' : ''}${Math.round(volumeChange)} kg (${volumeChangePercent >= 0 ? '+' : ''}${volumeChangePercent.toFixed(1)}%)
+                                        </div>
+                                        <div style="font-size: 0.7rem; color: #6b7280; margin-top: 2px;">
+                                            Sets: ${setsChange >= 0 ? '+' : ''}${setsChange}
+                                        </div>
+                                    </div>
+                                </div>`;
+                            }).join('')}
                         </div>
                     </div>
                 ` : ''}
@@ -1862,70 +2381,287 @@ const Profile = () => {
               )}
             </div>
             
-            <div className="p-4 bg-gray-800 rounded-xl">
-              <h3 className="text-white font-medium mb-3">Export Data</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white text-sm font-medium">JSON Backup</p>
-                    <p className="text-gray-400 text-xs">Raw data for app restore</p>
+            <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700/50 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-700/50">
+                <h3 className="text-white font-semibold text-lg">Export Data</h3>
+                <p className="text-gray-400 text-sm mt-1">Generate professional reports and backups</p>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Date Range Selector for PDF Reports */}
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <h4 className="text-white font-medium">PDF Report Time Range</h4>
                   </div>
-                  <button
-                    onClick={exportData}
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 flex items-center active:scale-95 text-sm"
-                  >
-                    <Download size={14} className="mr-1" />
-                    JSON
-                  </button>
+                  <div className="bg-gray-700/50 rounded-xl p-4 space-y-3">
+                    <AppleDropdown
+                      value={pdfTimeRange}
+                      onChange={handlePdfTimeRangeChange}
+                      options={[
+                        { value: '0', label: 'Today' },
+                        { value: '3', label: 'Last 3 days' },
+                        { value: '7', label: 'Last 7 days' },
+                        { value: '30', label: 'Last 30 days' },
+                        { value: '365', label: 'Last year' },
+                        { value: 'custom', label: 'Select specific date' }
+                      ]}
+                      placeholder="Select time range"
+                      className="w-full"
+                    />
+                    {pdfTimeRange === 'custom' && pdfCustomDate && (
+                      <div className="flex items-center space-x-2 text-sm">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                        <span className="text-gray-300">Selected: </span>
+                        <span className="text-white font-medium">{format(new Date(pdfCustomDate), 'MMM d, yyyy')}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between bg-gray-600/50 rounded-lg px-3 py-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                        <span className="text-gray-300 text-sm">Workouts to include:</span>
+                      </div>
+                      <span className="text-blue-400 font-semibold text-sm">
+                        {getFilteredWorkoutsForPdf().length}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Time Period Comparison Toggle */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-white text-sm font-medium">Professional Report + AI</p>
-                      <p className="text-gray-400 text-xs">PDF with charts, analysis & AI insights</p>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                      <h4 className="text-white font-medium">Time Period Comparison</h4>
                     </div>
                     <button
-                      onClick={exportProfessionalReportWithAI}
-                      className="export-report-ai-btn px-3 py-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg transition-all duration-200 flex items-center active:scale-95 text-sm"
+                      onClick={() => setEnableTimeComparison(!enableTimeComparison)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                        enableTimeComparison ? 'bg-blue-600' : 'bg-gray-600'
+                      }`}
                     >
-                      <Download size={14} className="mr-1" />
-                      PDF + AI
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          enableTimeComparison ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
                     </button>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-white text-sm font-medium">Professional Report</p>
-                      <p className="text-gray-400 text-xs">PDF with charts & basic analysis only</p>
+                  
+                  {enableTimeComparison && (
+                    <div className="bg-gray-700/50 rounded-xl p-4 space-y-4">
+                      <p className="text-gray-400 text-sm">
+                        Compare your performance between different time periods (e.g., "Last 30 days vs 30 days before that")
+                      </p>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-gray-300 text-sm font-medium mb-2 block">Current Period</label>
+                          <AppleDropdown
+                            value={comparisonPeriod1}
+                            onChange={setComparisonPeriod1}
+                            options={[
+                              { value: '7', label: 'Last 7 days' },
+                              { value: '30', label: 'Last 30 days' },
+                              { value: '60', label: 'Last 60 days' },
+                              { value: '90', label: 'Last 90 days' },
+                              { value: '180', label: 'Last 6 months' },
+                              { value: '365', label: 'Last year' }
+                            ]}
+                            placeholder="Select period"
+                            className="w-full"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="text-gray-300 text-sm font-medium mb-2 block">Compare Against</label>
+                          <AppleDropdown
+                            value={comparisonPeriod2}
+                            onChange={setComparisonPeriod2}
+                            options={[
+                              { value: '7', label: '7 days before that' },
+                              { value: '30', label: '30 days before that' },
+                              { value: '60', label: '60 days before that' },
+                              { value: '90', label: '90 days before that' },
+                              { value: '180', label: '6 months before that' },
+                              { value: '365', label: '1 year before that' }
+                            ]}
+                            placeholder="Select comparison period"
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg px-3 py-2">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <div className="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                          <span className="text-orange-400 font-medium text-sm">Comparison Preview:</span>
+                        </div>
+                        <div className="text-gray-300 text-xs">
+                          <div>📊 Current: Last {comparisonPeriod1} days ({getWorkoutsFromTimePeriod(comparisonPeriod1, null, 1).length} workouts)</div>
+                          <div>📈 Previous: {comparisonPeriod2} days before that ({getWorkoutsFromTimePeriod(comparisonPeriod2, null, 2).length} workouts)</div>
+                        </div>
+                      </div>
                     </div>
-                    <button
-                      onClick={exportProfessionalReportBasic}
-                      className="export-report-basic-btn px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 flex items-center active:scale-95 text-sm"
-                    >
-                      <Download size={14} className="mr-1" />
-                      PDF Only
-                    </button>
+                  )}
+                </div>
+
+                {/* Split Selection for PDF Comparison */}
+                {availableSplits.length > 1 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <h4 className="text-white font-medium">Select Splits to Compare</h4>
+                    </div>
+                    <div className="bg-gray-700/50 rounded-xl p-4 space-y-4">
+                      <p className="text-gray-400 text-sm">
+                        Choose specific workout days/splits to compare. Leave empty to include all splits.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {availableSplits.map(splitName => (
+                          <button
+                            key={splitName}
+                            onClick={() => handleSplitSelection(splitName)}
+                            className={`relative p-3 rounded-xl text-sm font-medium transition-all duration-300 transform active:scale-95 ${
+                              selectedSplitsForPdf.includes(splitName)
+                                ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/25 border border-blue-400/50'
+                                : 'bg-gray-600/50 text-gray-300 border border-gray-500/50 hover:bg-gray-500/50 hover:border-gray-400/50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="truncate">{splitName}</span>
+                              {selectedSplitsForPdf.includes(splitName) && (
+                                <div className="w-2 h-2 bg-white rounded-full ml-2 flex-shrink-0"></div>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      {selectedSplitsForPdf.length > 0 && (
+                        <div className="flex items-center justify-between bg-purple-900/20 border border-purple-500/30 rounded-lg px-3 py-2">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div>
+                            <span className="text-gray-300 text-sm">Selected for comparison:</span>
+                          </div>
+                          <span className="text-purple-400 font-semibold text-sm">
+                            {selectedSplitsForPdf.length} split{selectedSplitsForPdf.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              
+                {/* Export Actions */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <h4 className="text-white font-medium">Export Options</h4>
+                  </div>
+                  
+                  {/* JSON Backup */}
+                  <div className="bg-gray-700/30 rounded-xl p-4 border border-gray-600/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                          <h5 className="text-white font-medium text-sm">JSON Backup</h5>
+                        </div>
+                        <p className="text-gray-400 text-xs">Raw data for app restore</p>
+                      </div>
+                      <button
+                        onClick={exportData}
+                        className="ml-4 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-xl font-medium text-sm transition-all duration-300 transform active:scale-95 shadow-lg shadow-blue-500/25 flex items-center space-x-2"
+                      >
+                        <Download size={16} />
+                        <span>JSON</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Professional Report + AI */}
+                  <div className="bg-gradient-to-r from-green-900/20 to-blue-900/20 rounded-xl p-4 border border-green-500/30">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                          <h5 className="text-white font-medium text-sm">Professional Report + AI</h5>
+                        </div>
+                        <p className="text-gray-400 text-xs">
+                          PDF with charts, analysis & AI insights for selected time range
+                          {selectedSplitsForPdf.length > 0 && (
+                            <span className="text-green-400 font-medium"> ({selectedSplitsForPdf.length} splits)</span>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        onClick={exportProfessionalReportWithAI}
+                        className="export-report-ai-btn ml-4 px-4 py-2.5 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-xl font-medium text-sm transition-all duration-300 transform active:scale-95 shadow-lg shadow-green-500/25 flex items-center space-x-2"
+                      >
+                        <Download size={16} />
+                        <span>PDF + AI</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Professional Report */}
+                  <div className="bg-green-900/20 rounded-xl p-4 border border-green-500/30">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                          <h5 className="text-white font-medium text-sm">Professional Report</h5>
+                        </div>
+                        <p className="text-gray-400 text-xs">
+                          PDF with charts & basic analysis for selected time range
+                          {selectedSplitsForPdf.length > 0 && (
+                            <span className="text-green-400 font-medium"> ({selectedSplitsForPdf.length} splits)</span>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        onClick={exportProfessionalReportBasic}
+                        className="export-report-basic-btn ml-4 px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white rounded-xl font-medium text-sm transition-all duration-300 transform active:scale-95 shadow-lg shadow-green-500/25 flex items-center space-x-2"
+                      >
+                        <Download size={16} />
+                        <span>PDF Only</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-xl">
-              <div>
-                <h3 className="text-white font-medium">Import Data</h3>
-                <p className="text-sm text-gray-400">
-                  Restore from a previous backup
-                </p>
+            <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700/50 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-700/50">
+                <h3 className="text-white font-semibold text-lg">Import Data</h3>
+                <p className="text-gray-400 text-sm mt-1">Restore from a previous backup</p>
               </div>
-              <label className="fitness-secondary-button flex items-center cursor-pointer">
-                <Upload size={16} className="mr-2" />
-                Import
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={importData}
-                  className="hidden"
-                />
-              </label>
+              
+              <div className="p-6">
+                <div className="bg-gray-700/30 rounded-xl p-4 border border-gray-600/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <div className="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                        <h5 className="text-white font-medium text-sm">JSON Restore</h5>
+                      </div>
+                      <p className="text-gray-400 text-xs">Upload a backup file to restore your data</p>
+                    </div>
+                    <label className="ml-4 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 text-white rounded-xl font-medium text-sm transition-all duration-300 transform active:scale-95 shadow-lg shadow-orange-500/25 flex items-center space-x-2 cursor-pointer">
+                      <Upload size={16} />
+                      <span>Import</span>
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={importData}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div className="flex items-center justify-between pt-4 border-t border-gray-700">
@@ -2212,6 +2948,16 @@ const Profile = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Apple Calendar Modal for PDF Date Selection */}
+      {showPdfDatePicker && (
+        <AppleCalendar
+          selectedDate={pdfCustomDate || format(new Date(), 'yyyy-MM-dd')}
+          onDateSelect={handlePdfDateSelect}
+          onClose={() => setShowPdfDatePicker(false)}
+          workouts={workouts}
+        />
       )}
     </div>
   )
