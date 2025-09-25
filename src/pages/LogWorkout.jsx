@@ -45,9 +45,10 @@ const LogWorkout = () => {
   }
 
   const handleAddSet = (exerciseId) => {
-    const set = exerciseType === 'strength' 
+    const exercise = currentWorkout.exercises.find(ex => ex.id === exerciseId)
+    const set = exercise?.type === 'strength' 
       ? { reps: 0, weight: 0, difficulty: 0 }
-      : { duration: 0, distance: 0, difficulty: 0 }
+      : { duration: 0, distance: 0, timing: 'after', intensity: 'slow' }
     addSet(exerciseId, set)
   }
 
@@ -252,37 +253,112 @@ const SetRow = ({ set, setIndex, exerciseType, onUpdate, onDelete }) => {
           </div>
         </>
       ) : (
-        <>
-          <div className="flex-1">
-            <input
-              type="number"
-              placeholder="Minutes"
-              value={set.duration || ''}
-              onChange={(e) => onUpdate({ duration: parseInt(e.target.value) || 0 })}
-              className="fitness-input text-sm"
-            />
+        <div className="space-y-4">
+          {/* Duration and Distance Row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">Duration</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={set.duration || ''}
+                  onChange={(e) => onUpdate({ duration: parseInt(e.target.value) || 0 })}
+                  className="fitness-input text-sm pr-12"
+                />
+                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">min</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">Distance</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="0.0"
+                  value={set.distance || ''}
+                  onChange={(e) => onUpdate({ distance: parseFloat(e.target.value) || 0 })}
+                  className="fitness-input text-sm pr-12"
+                />
+                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">km</span>
+              </div>
+            </div>
           </div>
-          <div className="flex-1">
-            <input
-              type="number"
-              placeholder="Distance"
-              value={set.distance || ''}
-              onChange={(e) => onUpdate({ distance: parseFloat(e.target.value) || 0 })}
-              className="fitness-input text-sm"
-            />
+
+          {/* Timing Selection */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-2">When did you do this cardio?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onUpdate({ timing: 'before' })}
+                className={`p-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  (set.timing || 'after') === 'before'
+                    ? 'bg-orange-600 text-white shadow-lg shadow-orange-500/25 border border-orange-400/50'
+                    : 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 hover:border-gray-500'
+                }`}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <span>🔥</span>
+                  <span>Before Workout</span>
+                </div>
+                <div className="text-xs opacity-75 mt-1">Warm-up</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdate({ timing: 'after' })}
+                className={`p-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  (set.timing || 'after') === 'after'
+                    ? 'bg-green-600 text-white shadow-lg shadow-green-500/25 border border-green-400/50'
+                    : 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 hover:border-gray-500'
+                }`}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <span>💪</span>
+                  <span>After Workout</span>
+                </div>
+                <div className="text-xs opacity-75 mt-1">Cool-down</div>
+              </button>
+            </div>
           </div>
-          <div className="flex-1">
-            <input
-              type="number"
-              placeholder="Difficulty"
-              min="1"
-              max="10"
-              value={set.difficulty || ''}
-              onChange={(e) => onUpdate({ difficulty: parseInt(e.target.value) || 0 })}
-              className="fitness-input text-sm"
-            />
+
+          {/* Intensity Selection */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-2">Cardio intensity</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onUpdate({ intensity: 'slow' })}
+                className={`p-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  (set.intensity || 'slow') === 'slow'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/50'
+                    : 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 hover:border-gray-500'
+                }`}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <span>🐌</span>
+                  <span>Slow Cardio</span>
+                </div>
+                <div className="text-xs opacity-75 mt-1">LISS / Fat Burn</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdate({ intensity: 'fast' })}
+                className={`p-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  (set.intensity || 'slow') === 'fast'
+                    ? 'bg-red-600 text-white shadow-lg shadow-red-500/25 border border-red-400/50'
+                    : 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 hover:border-gray-500'
+                }`}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <span>⚡</span>
+                  <span>Fast Cardio</span>
+                </div>
+                <div className="text-xs opacity-75 mt-1">HIIT / Intense</div>
+              </button>
+            </div>
           </div>
-        </>
+        </div>
       )}
       
       <button

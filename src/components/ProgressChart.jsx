@@ -44,7 +44,16 @@ const ProgressChart = ({ workouts }) => {
         date: format(new Date(workout.date), 'MMM d'),
         volume: totalVolume,
         sets: totalSets,
-        exercises: workout.exercises.length
+        exercises: workout.exercises.length,
+        exerciseDetails: workout.exercises.map(exercise => ({
+          name: exercise.name,
+          type: exercise.type,
+          sets: exercise.sets.length,
+          volume: exercise.type === 'strength' 
+            ? exercise.sets.reduce((sum, set) => sum + (set.weight || 0) * (set.reps || 0), 0)
+            : 0,
+          muscleGroup: exercise.muscleGroup || 'Unknown'
+        }))
       }
     })
   }, [workouts])
@@ -90,9 +99,42 @@ const ProgressChart = ({ workouts }) => {
         },
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
         titleColor: 'white',
         bodyColor: 'white',
+        callbacks: {
+          title: function(context) {
+            return context[0].label
+          },
+          afterBody: function(context) {
+            const dataIndex = context[0].dataIndex
+            const dataPoint = progressData[dataIndex]
+            
+            if (dataPoint.exerciseDetails && dataPoint.exerciseDetails.length > 0) {
+              let lines = ['', 'Exercises:']
+              
+              // Group exercises by type
+              const strengthExercises = dataPoint.exerciseDetails.filter(ex => ex.type === 'strength')
+              const cardioExercises = dataPoint.exerciseDetails.filter(ex => ex.type === 'cardio')
+              
+              if (strengthExercises.length > 0) {
+                strengthExercises.forEach(exercise => {
+                  lines.push(`💪 ${exercise.name} (${exercise.sets} sets, ${Math.round(exercise.volume)} kg)`)
+                })
+              }
+              
+              if (cardioExercises.length > 0) {
+                cardioExercises.forEach(exercise => {
+                  lines.push(`🏃 ${exercise.name} (${exercise.sets} sets)`)
+                })
+              }
+              
+              return lines
+            }
+            
+            return []
+          }
+        }
       },
     },
     scales: {

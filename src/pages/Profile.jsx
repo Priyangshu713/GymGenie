@@ -533,6 +533,12 @@ const Profile = () => {
         repRanges: { '1-5': 0, '6-10': 0, '11-15': 0, '16-20': 0, '21+': 0 },
         weightRanges: { '0-10': 0, '11-25': 0, '26-50': 0, '51-100': 0, '100+': 0 },
         recommendations: [],
+        // Cardio analytics data
+        cardioAnalytics: {
+          beforeWorkout: { slow: 0, fast: 0, totalDuration: 0, totalDistance: 0 },
+          afterWorkout: { slow: 0, fast: 0, totalDuration: 0, totalDistance: 0 },
+          insights: []
+        },
         // Split comparison data
         splitComparison: {},
         splitProgress: {},
@@ -555,6 +561,52 @@ const Profile = () => {
         aiInsights: includeAI ? aiInsights : null,
         splitAnalysis: includeAI ? splitAnalysisForReport : null,
         includeAI: includeAI
+      }
+
+      // Calculate cardio analytics
+      filteredWorkouts.forEach(workout => {
+        workout.exercises.forEach(exercise => {
+          if (exercise.type === 'cardio') {
+            exercise.sets.forEach(set => {
+              const timing = set.timing || 'after'
+              const intensity = set.intensity || 'slow'
+              const duration = set.duration || 0
+              const distance = set.distance || 0
+              
+              reportData.cardioAnalytics[`${timing}Workout`][intensity] += 1
+              reportData.cardioAnalytics[`${timing}Workout`].totalDuration += duration
+              reportData.cardioAnalytics[`${timing}Workout`].totalDistance += distance
+            })
+          }
+        })
+      })
+      
+      // Generate cardio insights
+      const cardioData = reportData.cardioAnalytics
+      const totalCardio = cardioData.beforeWorkout.slow + cardioData.beforeWorkout.fast + 
+                         cardioData.afterWorkout.slow + cardioData.afterWorkout.fast
+      
+      if (totalCardio > 0) {
+        if (cardioData.afterWorkout.slow > cardioData.beforeWorkout.fast) {
+          reportData.cardioAnalytics.insights.push("✅ Excellent strategy: More slow cardio after workouts helps preserve muscle mass")
+        } else {
+          reportData.cardioAnalytics.insights.push("💡 Consider more slow cardio after workouts to preserve muscle mass")
+        }
+        
+        if (cardioData.beforeWorkout.fast > 2) {
+          reportData.cardioAnalytics.insights.push("⚠️ High-intensity cardio before workouts may impact strength performance")
+        }
+        
+        const totalDuration = cardioData.beforeWorkout.totalDuration + cardioData.afterWorkout.totalDuration
+        if (totalDuration > 180) {
+          reportData.cardioAnalytics.insights.push(`⚠️ Excessive cardio (${totalDuration} min) may interfere with muscle growth goals`)
+        } else if (totalDuration > 0) {
+          reportData.cardioAnalytics.insights.push(`✅ Good cardio volume (${totalDuration} min) for bodybuilding goals`)
+        }
+        
+        if (cardioData.afterWorkout.slow > cardioData.afterWorkout.fast) {
+          reportData.cardioAnalytics.insights.push("✅ Smart approach: Prioritizing slow cardio post-workout for recovery")
+        }
       }
 
       // Calculate comprehensive analytics
@@ -584,8 +636,8 @@ const Profile = () => {
             (reportData.topExercises[exercise.name] || 0) + exercise.sets.length
 
           exercise.sets.forEach(set => {
-            // Difficulty distribution
-            if (set.difficulty && set.difficulty >= 1 && set.difficulty <= 10) {
+            // Difficulty distribution (only for strength exercises)
+            if (exercise.type === 'strength' && set.difficulty && set.difficulty >= 1 && set.difficulty <= 10) {
               reportData.difficultyDistribution[set.difficulty]++
             }
 
@@ -912,7 +964,19 @@ const Profile = () => {
           if (recentSessions.length >= 2) {
             const firstVolume = recentSessions[0].volume
             const lastVolume = recentSessions[recentSessions.length - 1].volume
-            const progressPercent = firstVolume > 0 ? ((lastVolume - firstVolume) / firstVolume) * 100 : 0
+            
+            // Fix misleading percentage calculations
+            let progressPercent = 0
+            if (firstVolume > 0 && lastVolume > 0) {
+              progressPercent = ((lastVolume - firstVolume) / firstVolume) * 100
+            } else if (firstVolume === 0 && lastVolume > 0) {
+              // If starting from 0, show as 100% improvement instead of infinity
+              progressPercent = 100
+            } else if (firstVolume > 0 && lastVolume === 0) {
+              // If ending at 0, show as -100% decline
+              progressPercent = -100
+            }
+            // If both are 0, progressPercent remains 0
             
             // Only include progress data if this split is selected
             if (selectedSplitsForPdf.length === 0 || selectedSplitsForPdf.includes(key)) {
@@ -943,7 +1007,11 @@ const Profile = () => {
             totalWorkouts: workouts.length,
             totalVolume: workouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.weight || 0) * (set.reps || 0), 0), 0), 0),
             totalSets: workouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.length, 0), 0),
-            avgDifficulty: workouts.length > 0 ? workouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.difficulty || 0), 0) / Math.max(e.sets.length, 1), 0) / Math.max(w.exercises.length, 1), 0) / workouts.length : 0,
+            avgDifficulty: workouts.length > 0 ? workouts.reduce((sum, w) => {
+              const strengthExercises = w.exercises.filter(e => e.type === 'strength')
+              if (strengthExercises.length === 0) return sum
+              return sum + strengthExercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.difficulty || 0), 0) / Math.max(e.sets.length, 1), 0) / strengthExercises.length
+            }, 0) / workouts.length : 0,
             muscleGroups: {},
             topExercises: {}
           }
@@ -1354,6 +1422,107 @@ const Profile = () => {
                         </div>
                     </div>
                 ` : ''}
+            </div>
+            ` : ''}
+
+            ${data.cardioAnalytics && (data.cardioAnalytics.beforeWorkout.slow + data.cardioAnalytics.beforeWorkout.fast + data.cardioAnalytics.afterWorkout.slow + data.cardioAnalytics.afterWorkout.fast) > 0 ? `
+            <div class="section">
+                <h2>🏃‍♂️ Cardio Strategy Analysis</h2>
+                <p style="color: #6b7280; margin-bottom: 30px;">Analyze your cardio timing and intensity for optimal bodybuilding results</p>
+                
+                <!-- Cardio Overview - Only show sections with actual data -->
+                <div style="margin-bottom: 30px;">
+                    ${(data.cardioAnalytics.beforeWorkout.slow + data.cardioAnalytics.beforeWorkout.fast) > 0 ? `
+                        <div class="card" style="border-left: 4px solid #f97316; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h4 style="color: #1f2937; margin: 0; font-size: 1.1rem;">🔥 Before Workout Cardio</h4>
+                                <div style="background: #fef3c7; padding: 5px 10px; border-radius: 15px; font-size: 0.8rem; color: #92400e; font-weight: 600;">
+                                    ${data.cardioAnalytics.beforeWorkout.slow + data.cardioAnalytics.beforeWorkout.fast} sessions • ${data.cardioAnalytics.beforeWorkout.totalDuration} min
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                                ${data.cardioAnalytics.beforeWorkout.slow > 0 ? `
+                                    <div style="text-align: center; padding: 15px; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
+                                        <div style="font-size: 1.5rem; font-weight: 700; color: #15803d; margin-bottom: 5px;">${data.cardioAnalytics.beforeWorkout.slow}</div>
+                                        <div style="color: #166534; font-size: 0.9rem; font-weight: 500;">🐌 Slow Cardio</div>
+                                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">LISS / Fat Burn</div>
+                                    </div>
+                                ` : ''}
+                                ${data.cardioAnalytics.beforeWorkout.fast > 0 ? `
+                                    <div style="text-align: center; padding: 15px; background: #fef2f2; border-radius: 8px; border: 1px solid #fecaca;">
+                                        <div style="font-size: 1.5rem; font-weight: 700; color: #dc2626; margin-bottom: 5px;">${data.cardioAnalytics.beforeWorkout.fast}</div>
+                                        <div style="color: #991b1b; font-size: 0.9rem; font-weight: 500;">⚡ Fast Cardio</div>
+                                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">HIIT / Intense</div>
+                                    </div>
+                                ` : ''}
+                                ${data.cardioAnalytics.beforeWorkout.totalDistance > 0 ? `
+                                    <div style="text-align: center; padding: 15px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bfdbfe;">
+                                        <div style="font-size: 1.5rem; font-weight: 700; color: #2563eb; margin-bottom: 5px;">${Math.round(data.cardioAnalytics.beforeWorkout.totalDistance * 10) / 10}</div>
+                                        <div style="color: #1d4ed8; font-size: 0.9rem; font-weight: 500;">📏 Distance</div>
+                                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">kilometers</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    ${(data.cardioAnalytics.afterWorkout.slow + data.cardioAnalytics.afterWorkout.fast) > 0 ? `
+                        <div class="card" style="border-left: 4px solid #10b981;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h4 style="color: #1f2937; margin: 0; font-size: 1.1rem;">💪 After Workout Cardio</h4>
+                                <div style="background: #dcfce7; padding: 5px 10px; border-radius: 15px; font-size: 0.8rem; color: #166534; font-weight: 600;">
+                                    ${data.cardioAnalytics.afterWorkout.slow + data.cardioAnalytics.afterWorkout.fast} sessions • ${data.cardioAnalytics.afterWorkout.totalDuration} min
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                                ${data.cardioAnalytics.afterWorkout.slow > 0 ? `
+                                    <div style="text-align: center; padding: 15px; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
+                                        <div style="font-size: 1.5rem; font-weight: 700; color: #15803d; margin-bottom: 5px;">${data.cardioAnalytics.afterWorkout.slow}</div>
+                                        <div style="color: #166534; font-size: 0.9rem; font-weight: 500;">🐌 Slow Cardio</div>
+                                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">Recovery</div>
+                                    </div>
+                                ` : ''}
+                                ${data.cardioAnalytics.afterWorkout.fast > 0 ? `
+                                    <div style="text-align: center; padding: 15px; background: #fef2f2; border-radius: 8px; border: 1px solid #fecaca;">
+                                        <div style="font-size: 1.5rem; font-weight: 700; color: #dc2626; margin-bottom: 5px;">${data.cardioAnalytics.afterWorkout.fast}</div>
+                                        <div style="color: #991b1b; font-size: 0.9rem; font-weight: 500;">⚡ Fast Cardio</div>
+                                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">Conditioning</div>
+                                    </div>
+                                ` : ''}
+                                ${data.cardioAnalytics.afterWorkout.totalDistance > 0 ? `
+                                    <div style="text-align: center; padding: 15px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bfdbfe;">
+                                        <div style="font-size: 1.5rem; font-weight: 700; color: #2563eb; margin-bottom: 5px;">${Math.round(data.cardioAnalytics.afterWorkout.totalDistance * 10) / 10}</div>
+                                        <div style="color: #1d4ed8; font-size: 0.9rem; font-weight: 500;">📏 Distance</div>
+                                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">kilometers</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <!-- Cardio Insights -->
+                ${data.cardioAnalytics.insights.length > 0 ? `
+                    <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+                        <h4 style="color: #15803d; margin-top: 0;">🎯 Bodybuilding Cardio Insights</h4>
+                        <div style="space-y: 10px;">
+                            ${data.cardioAnalytics.insights.map(insight => `
+                                <div style="margin-bottom: 8px; font-size: 0.9rem; color: #374151;">${insight}</div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <!-- Cardio Strategy Recommendations -->
+                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 8px;">
+                    <h4 style="color: #92400e; margin-top: 0;">💡 Optimal Cardio Strategy for Bodybuilding</h4>
+                    <div style="font-size: 0.9rem; color: #374151; line-height: 1.6;">
+                        <p><strong>🐌 Slow Cardio (LISS):</strong> Best after workouts for fat burning without muscle loss</p>
+                        <p><strong>⚡ Fast Cardio (HIIT):</strong> Use sparingly, preferably on non-training days</p>
+                        <p><strong>⏱️ Duration:</strong> Keep total cardio under 3 hours per week to preserve muscle</p>
+                        <p><strong>🎯 Timing:</strong> Post-workout slow cardio is ideal for muscle preservation</p>
+                    </div>
+                </div>
             </div>
             ` : ''}
 

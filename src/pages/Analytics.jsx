@@ -117,7 +117,8 @@ const Analytics = () => {
           workouts: 0,
           exercises: 0,
           sets: 0,
-          weight: 0
+          weight: 0,
+          exerciseDetails: []
         })
         currentDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000) // Add 1 day
       }
@@ -135,6 +136,20 @@ const Analytics = () => {
           
           workout.exercises.forEach(exercise => {
             daysArray[dayIndex].sets += exercise.sets.length
+            
+            // Add exercise details for tooltip
+            const exerciseVolume = exercise.type === 'strength' 
+              ? exercise.sets.reduce((sum, set) => sum + (set.weight || 0) * (set.reps || 0), 0)
+              : 0
+            
+            daysArray[dayIndex].exerciseDetails.push({
+              name: exercise.name,
+              type: exercise.type,
+              sets: exercise.sets.length,
+              volume: exerciseVolume,
+              muscleGroup: exercise.muscleGroup || 'Unknown'
+            })
+            
             if (exercise.type === 'strength') {
               exercise.sets.forEach(set => {
                 daysArray[dayIndex].weight += (set.weight || 0) * (set.reps || 0)
@@ -144,7 +159,7 @@ const Analytics = () => {
         }
       })
       
-      // Remove the date property before returning (not needed for chart)
+      // Keep exercise details but remove the date property
       const result = daysArray.map(({ date, ...data }) => data)
       console.log('Daily data order:', result.map(d => d.week))
       return result
@@ -156,7 +171,7 @@ const Analytics = () => {
         const weekKey = format(weekStart, 'MMM d')
         
         if (!weeks[weekKey]) {
-          weeks[weekKey] = { workouts: 0, exercises: 0, sets: 0, weight: 0 }
+          weeks[weekKey] = { workouts: 0, exercises: 0, sets: 0, weight: 0, exerciseDetails: [] }
         }
         
         weeks[weekKey].workouts += 1
@@ -164,6 +179,20 @@ const Analytics = () => {
         
         workout.exercises.forEach(exercise => {
           weeks[weekKey].sets += exercise.sets.length
+          
+          // Add exercise details for tooltip
+          const exerciseVolume = exercise.type === 'strength' 
+            ? exercise.sets.reduce((sum, set) => sum + (set.weight || 0) * (set.reps || 0), 0)
+            : 0
+          
+          weeks[weekKey].exerciseDetails.push({
+            name: exercise.name,
+            type: exercise.type,
+            sets: exercise.sets.length,
+            volume: exerciseVolume,
+            muscleGroup: exercise.muscleGroup || 'Unknown'
+          })
+          
           if (exercise.type === 'strength') {
             exercise.sets.forEach(set => {
               weeks[weekKey].weight += (set.weight || 0) * (set.reps || 0)

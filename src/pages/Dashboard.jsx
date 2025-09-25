@@ -14,7 +14,8 @@ import {
   Clock,
   Target,
   BarChart3,
-  Trophy
+  Trophy,
+  Timer
 } from 'lucide-react'
 import { format, isToday, isThisWeek, subDays, isAfter, isSameDay, startOfDay, endOfDay } from 'date-fns'
 
@@ -71,11 +72,16 @@ const Dashboard = () => {
   
   const avgIntensity = filteredWorkouts.length > 0 ? filteredWorkouts.reduce((total, workout) => {
     if (workout.exercises.length === 0) return total
-    const workoutRPE = workout.exercises.reduce((sum, ex) => {
+    
+    // Only include strength exercises for difficulty calculation
+    const strengthExercises = workout.exercises.filter(ex => ex.type === 'strength')
+    if (strengthExercises.length === 0) return total
+    
+    const workoutRPE = strengthExercises.reduce((sum, ex) => {
       if (ex.sets.length === 0) return sum
       const avgRPE = ex.sets.reduce((rpeSum, set) => rpeSum + (set.difficulty || 0), 0) / ex.sets.length
       return sum + avgRPE
-    }, 0) / workout.exercises.length
+    }, 0) / strengthExercises.length
     return total + workoutRPE
   }, 0) / filteredWorkouts.length : 0
 
@@ -365,6 +371,117 @@ const Dashboard = () => {
             )
           })()}
         </div>
+
+        {/* Cardio Analytics - Bodybuilding Focus */}
+        {(() => {
+          const cardioData = {
+            beforeWorkout: { slow: 0, fast: 0, totalDuration: 0 },
+            afterWorkout: { slow: 0, fast: 0, totalDuration: 0 }
+          }
+          
+          filteredWorkouts.forEach(workout => {
+            workout.exercises.forEach(exercise => {
+              if (exercise.type === 'cardio') {
+                exercise.sets.forEach(set => {
+                  const timing = set.timing || 'after'
+                  const intensity = set.intensity || 'slow'
+                  const duration = set.duration || 0
+                  
+                  cardioData[`${timing}Workout`][intensity] += 1
+                  cardioData[`${timing}Workout`].totalDuration += duration
+                })
+              }
+            })
+          })
+          
+          const totalCardio = cardioData.beforeWorkout.slow + cardioData.beforeWorkout.fast + 
+                             cardioData.afterWorkout.slow + cardioData.afterWorkout.fast
+          
+          return totalCardio > 0 ? (
+            <div className="fitness-card">
+              <h2 className="text-white font-semibold mb-4 flex items-center">
+                <Timer size={20} className="mr-2 text-orange-400" />
+                Cardio Strategy
+              </h2>
+              
+              <div className="space-y-4 mb-4">
+                {/* Only show sections that have actual cardio data */}
+                {(cardioData.beforeWorkout.slow + cardioData.beforeWorkout.fast) > 0 && (
+                  <div className="bg-gray-800 rounded-xl p-4 border-l-4 border-orange-500">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-orange-400 font-semibold">🔥 Before Workout</span>
+                        <span className="text-xs text-gray-500">({cardioData.beforeWorkout.slow + cardioData.beforeWorkout.fast} sessions)</span>
+                      </div>
+                      <span className="text-blue-400 font-bold">{cardioData.beforeWorkout.totalDuration} min</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {cardioData.beforeWorkout.slow > 0 && (
+                        <div className="bg-green-900/30 rounded-lg p-3 text-center">
+                          <div className="text-green-400 font-bold text-lg">{cardioData.beforeWorkout.slow}</div>
+                          <div className="text-green-300 text-xs">🐌 Slow Cardio</div>
+                        </div>
+                      )}
+                      {cardioData.beforeWorkout.fast > 0 && (
+                        <div className="bg-red-900/30 rounded-lg p-3 text-center">
+                          <div className="text-red-400 font-bold text-lg">{cardioData.beforeWorkout.fast}</div>
+                          <div className="text-red-300 text-xs">⚡ Fast Cardio</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {(cardioData.afterWorkout.slow + cardioData.afterWorkout.fast) > 0 && (
+                  <div className="bg-gray-800 rounded-xl p-4 border-l-4 border-green-500">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-green-400 font-semibold">💪 After Workout</span>
+                        <span className="text-xs text-gray-500">({cardioData.afterWorkout.slow + cardioData.afterWorkout.fast} sessions)</span>
+                      </div>
+                      <span className="text-blue-400 font-bold">{cardioData.afterWorkout.totalDuration} min</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {cardioData.afterWorkout.slow > 0 && (
+                        <div className="bg-green-900/30 rounded-lg p-3 text-center">
+                          <div className="text-green-400 font-bold text-lg">{cardioData.afterWorkout.slow}</div>
+                          <div className="text-green-300 text-xs">🐌 Slow Cardio</div>
+                        </div>
+                      )}
+                      {cardioData.afterWorkout.fast > 0 && (
+                        <div className="bg-red-900/30 rounded-lg p-3 text-center">
+                          <div className="text-red-400 font-bold text-lg">{cardioData.afterWorkout.fast}</div>
+                          <div className="text-red-300 text-xs">⚡ Fast Cardio</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Cardio Insights */}
+              <div className="bg-gradient-to-r from-orange-900/20 to-green-900/20 border border-orange-500/30 rounded-xl p-4">
+                <h4 className="text-orange-400 font-medium mb-2 flex items-center">
+                  <Target size={16} className="mr-2" />
+                  Bodybuilding Insights
+                </h4>
+                <div className="text-sm text-gray-300 space-y-1">
+                  {cardioData.afterWorkout.slow > cardioData.beforeWorkout.fast ? (
+                    <p>✅ Good strategy: More slow cardio after workouts helps preserve muscle</p>
+                  ) : (
+                    <p>💡 Consider more slow cardio after workouts to preserve muscle mass</p>
+                  )}
+                  {cardioData.beforeWorkout.fast > 2 && (
+                    <p>⚠️ High-intensity cardio before workouts may impact strength performance</p>
+                  )}
+                  {(cardioData.beforeWorkout.totalDuration + cardioData.afterWorkout.totalDuration) > 180 && (
+                    <p>⚠️ Excessive cardio ({cardioData.beforeWorkout.totalDuration + cardioData.afterWorkout.totalDuration} min) may interfere with muscle growth</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null
+        })()}
 
         {/* Recent Activity - Apple Style */}
         {recentWorkouts.length > 0 && (
