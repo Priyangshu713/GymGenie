@@ -809,10 +809,10 @@ const SplitComparison = ({ workouts }) => {
                       <div className="h-48">
                         <Line
                           data={{
-                            labels: sessions.map(s => s.date),
+                            labels: [...sessions].reverse().map(s => s.date),
                             datasets: [{
                               label: selectedMetric === 'maxWeight' ? 'Max Weight' : selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1),
-                              data: sessions.map(s => s[selectedMetric]),
+                              data: [...sessions].reverse().map(s => s[selectedMetric]),
                               borderColor: getMetricColor(selectedMetric),
                               backgroundColor: getMetricColor(selectedMetric) + '20',
                               borderWidth: 3,

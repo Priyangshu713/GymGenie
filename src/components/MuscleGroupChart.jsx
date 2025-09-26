@@ -10,14 +10,19 @@ import { Doughnut } from 'react-chartjs-2'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const MuscleGroupChart = ({ data }) => {
-  const colors = [
-    'rgba(59, 130, 246, 0.8)',   // Blue
-    'rgba(16, 185, 129, 0.8)',   // Green
-    'rgba(245, 101, 101, 0.8)',  // Red
-    'rgba(251, 191, 36, 0.8)',   // Yellow
-    'rgba(139, 92, 246, 0.8)',   // Purple
-    'rgba(236, 72, 153, 0.8)',   // Pink
-  ]
+  // Fixed color mapping for each muscle group
+  const muscleGroupColors = {
+    back: 'rgba(59, 130, 246, 0.8)',      // Blue
+    core: 'rgba(16, 185, 129, 0.8)',      // Green  
+    triceps: 'rgba(245, 101, 101, 0.8)',  // Red
+    biceps: 'rgba(251, 191, 36, 0.8)',    // Yellow
+    chest: 'rgba(139, 92, 246, 0.8)',     // Purple
+    fullbody: 'rgba(236, 72, 153, 0.8)',  // Pink
+    forearms: 'rgba(249, 115, 22, 0.8)',  // Orange
+    shoulders: 'rgba(14, 165, 233, 0.8)', // Sky Blue
+    legs: 'rgba(34, 197, 94, 0.8)',       // Emerald
+    cardio: 'rgba(168, 85, 247, 0.8)',    // Violet
+  }
 
   // Sort muscle groups by sets in descending order (most focused first)
   const sortedData = Object.entries(data)
@@ -32,9 +37,11 @@ const MuscleGroupChart = ({ data }) => {
     datasets: [
       {
         data: Object.values(sortedData),
-        backgroundColor: colors.slice(0, Object.keys(sortedData).length),
-        borderColor: colors.slice(0, Object.keys(sortedData).length).map(color => 
-          color.replace('0.8', '1')
+        backgroundColor: Object.keys(sortedData).map(key => 
+          muscleGroupColors[key.toLowerCase()] || 'rgba(107, 114, 128, 0.8)' // Default gray for unknown muscle groups
+        ),
+        borderColor: Object.keys(sortedData).map(key => 
+          (muscleGroupColors[key.toLowerCase()] || 'rgba(107, 114, 128, 0.8)').replace('0.8', '1')
         ),
         borderWidth: 2,
       },

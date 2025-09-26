@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
 import AppleDropdown from '../components/AppleDropdown'
 import { Plus, Trash2, Play, Square, Save, X, Dumbbell, Timer, Target } from 'lucide-react'
-import { exerciseDatabase, getMuscleGroups, getExercisesForMuscleGroup } from '../data/exercises'
+import { exerciseDatabase, getMuscleGroups, getExercisesForMuscleGroup, isBodyweightExercise } from '../data/exercises'
 
 const LogWorkout = () => {
   const { 
@@ -47,7 +47,12 @@ const LogWorkout = () => {
   const handleAddSet = (exerciseId) => {
     const exercise = currentWorkout.exercises.find(ex => ex.id === exerciseId)
     const set = exercise?.type === 'strength' 
-      ? { reps: 0, weight: 0, difficulty: 0 }
+      ? { 
+          reps: 0, 
+          weight: 0, 
+          difficulty: 0, 
+          isBodyweight: isBodyweightExercise(exercise.name) 
+        }
       : { duration: 0, distance: 0, timing: 'after', intensity: 'slow' }
     addSet(exerciseId, set)
   }
@@ -195,6 +200,7 @@ const ExerciseCard = ({ exercise, index, onAddSet, onUpdateSet, onDeleteSet }) =
             set={set}
             setIndex={setIndex}
             exerciseType={exercise.type}
+            exerciseName={exercise.name}
             onUpdate={(updates) => onUpdateSet(set.id, updates)}
             onDelete={() => onDeleteSet(set.id)}
           />
@@ -213,15 +219,43 @@ const ExerciseCard = ({ exercise, index, onAddSet, onUpdateSet, onDeleteSet }) =
   )
 }
 
-const SetRow = ({ set, setIndex, exerciseType, onUpdate, onDelete }) => {
+const SetRow = ({ set, setIndex, exerciseType, exerciseName, onUpdate, onDelete }) => {
+  const canBeBodyweight = isBodyweightExercise(exerciseName)
+  const isBodyweight = set.isBodyweight || (canBeBodyweight && (set.weight === 0 || set.weight === undefined))
+
+  const handleBodyweightToggle = () => {
+    if (canBeBodyweight) {
+      const newIsBodyweight = !isBodyweight
+      onUpdate({ 
+        isBodyweight: newIsBodyweight,
+        weight: newIsBodyweight ? 0 : set.weight || 0
+      })
+    }
+  }
+
   return (
-    <div className="flex items-center space-x-3 p-3 bg-gray-800 rounded-xl">
-      <span className="text-sm font-semibold text-gray-400 w-8">
-        {setIndex + 1}
-      </span>
+    <div className="space-y-3 p-3 bg-gray-800 rounded-xl">
+      {/* Set number and bodyweight toggle */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-gray-400">
+          Set {setIndex + 1}
+        </span>
+        {canBeBodyweight && exerciseType === 'strength' && (
+          <button
+            onClick={handleBodyweightToggle}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              isBodyweight
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            {isBodyweight ? '💪 Bodyweight' : '🏋️ Weighted'}
+          </button>
+        )}
+      </div>
       
       {exerciseType === 'strength' ? (
-        <>
+        <div className="flex items-center space-x-3">
           <div className="flex-1">
             <input
               type="number"
@@ -234,10 +268,14 @@ const SetRow = ({ set, setIndex, exerciseType, onUpdate, onDelete }) => {
           <div className="flex-1">
             <input
               type="number"
-              placeholder="Weight (kg)"
-              value={set.weight || ''}
-              onChange={(e) => onUpdate({ weight: parseFloat(e.target.value) || 0 })}
+              placeholder={isBodyweight ? "0 (Bodyweight)" : "Weight (kg)"}
+              value={isBodyweight ? 0 : (set.weight || '')}
+              onChange={(e) => onUpdate({ 
+                weight: parseFloat(e.target.value) || 0,
+                isBodyweight: parseFloat(e.target.value) === 0 && canBeBodyweight
+              })}
               className="fitness-input text-sm"
+              disabled={isBodyweight}
             />
           </div>
           <div className="flex-1">
@@ -251,7 +289,7 @@ const SetRow = ({ set, setIndex, exerciseType, onUpdate, onDelete }) => {
               className="fitness-input text-sm"
             />
           </div>
-        </>
+        </div>
       ) : (
         <div className="space-y-4">
           {/* Duration and Distance Row */}

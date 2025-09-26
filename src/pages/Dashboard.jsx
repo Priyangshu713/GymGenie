@@ -287,7 +287,10 @@ const Dashboard = () => {
                     </div>
                     <div className="text-left">
                       <p className="text-white font-medium">
-                        {workout.exercises.length} exercises
+                        {workout.exercises.length > 1 
+                          ? `${workout.exercises[0].name} +${workout.exercises.length - 1} more`
+                          : workout.exercises[0]?.name || 'No exercises'
+                        }
                       </p>
                       <p className="text-gray-400 text-sm">
                         {format(new Date(workout.date), 'h:mm a')}
@@ -489,7 +492,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-semibold">History</h2>
               <Link
-                to="/analytics"
+                to="/history"
                 className="text-blue-400 text-sm font-medium"
               >
                 View All
@@ -509,7 +512,10 @@ const Dashboard = () => {
                     </div>
                     <div className="text-left">
                       <p className="text-white font-medium">
-                        {workout.exercises.length} exercises
+                        {workout.exercises.length > 1 
+                          ? `${workout.exercises[0].name} +${workout.exercises.length - 1} more`
+                          : workout.exercises[0]?.name || 'No exercises'
+                        }
                       </p>
                       <p className="text-gray-400 text-sm">
                         {format(new Date(workout.date), 'MMM d, h:mm a')}

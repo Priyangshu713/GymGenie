@@ -351,6 +351,75 @@ export const searchExercises = (query) => {
   return results
 }
 
+// List of exercises that can be performed with bodyweight
+export const bodyweightExercises = [
+  // Pull-ups and variations
+  'Pull-ups',
+  'Chin-ups',
+  'Wide-Grip Pull-ups',
+  'Close-Grip Pull-ups',
+  'Neutral Grip Pull-ups',
+  'Assisted Pull-ups',
+  
+  // Push-ups and variations
+  'Push-ups',
+  'Incline Push-ups',
+  'Decline Push-ups',
+  'Diamond Push-ups',
+  'Wide-Grip Push-ups',
+  'Archer Push-ups',
+  
+  // Dips
+  'Dips',
+  'Chest Dips',
+  'Tricep Dips',
+  'Bench Dips',
+  
+  // Core exercises
+  'Crunches',
+  'Sit-ups',
+  'Bicycle Crunches',
+  'Russian Twists',
+  'Mountain Climbers',
+  'Leg Raises',
+  'Hanging Leg Raises',
+  'Knee Raises',
+  'Plank',
+  'Side Plank',
+  'Plank Up-Downs',
+  'Dead Bug',
+  'Bird Dog',
+  'V-ups',
+  'Hollow Body Hold',
+  'Flutter Kicks',
+  'Scissor Kicks',
+  
+  // Leg exercises
+  'Lunges',
+  'Walking Lunges',
+  'Reverse Lunges',
+  'Step-ups',
+  'Bulgarian Split Squats',
+  'Glute Bridges',
+  'Nordic Curls',
+  'Single-Leg Deadlifts',
+  'Single-Leg Calf Raises',
+  
+  // Full body
+  'Burpees',
+  'Bear Crawls',
+  'Crab Walks',
+  'Plank to Push-up',
+  
+  // Grip/Forearms
+  'Dead Hangs'
+]
+
+// Check if an exercise can be performed with bodyweight
+export const isBodyweightExercise = (exerciseName) => {
+  return bodyweightExercises.includes(exerciseName)
+}
+
 // Get total number of exercises
 export const getTotalExerciseCount = () => {
   return Object.values(exerciseDatabase).reduce((total, exercises) => total + exercises.length, 0)

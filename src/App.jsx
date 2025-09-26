@@ -8,6 +8,7 @@ import Analytics from './pages/Analytics'
 import AIInsights from './pages/AIInsights'
 import Profile from './pages/Profile'
 import Achievements from './pages/Achievements'
+import History from './pages/History'
 import { WorkoutProvider } from './context/WorkoutContext'
 import { ThemeProvider } from './context/ThemeContext'
 
@@ -27,6 +28,7 @@ function App() {
                     <Route path="/insights" element={<AIInsights />} />
                     <Route path="/achievements" element={<Achievements />} />
                     <Route path="/profile" element={<Profile />} />
+                    <Route path="/history" element={<History />} />
                   </Routes>
                 </ErrorBoundary>
                 <Navigation />
