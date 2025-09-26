@@ -24,6 +24,7 @@ import {
   ChevronUp
 } from 'lucide-react'
 import DateRangeSelector from './DateRangeSelector'
+import MuscleGroupProgress from './MuscleGroupProgress'
 import { subDays, isAfter, format, getDay, parseISO } from 'date-fns'
 
 ChartJS.register(
@@ -42,6 +43,7 @@ const SplitComparison = ({ workouts }) => {
   const [isScheduleExpanded, setIsScheduleExpanded] = useState(false)
   const [selectedComparisons, setSelectedComparisons] = useState([])
   const [showComparisonSelector, setShowComparisonSelector] = useState(false)
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false)
 
   // Get user's workout split from localStorage
   const userSplit = useMemo(() => {
@@ -802,7 +804,14 @@ const SplitComparison = ({ workouts }) => {
             <div className="space-y-4">
               <h3 className="text-white font-semibold mb-4">Progress Over Time</h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {Object.entries(progressData).map(([splitKey, sessions]) => (
+                {Object.entries(progressData)
+                  .filter(([splitKey]) => {
+                    // If no comparisons are selected, show all
+                    if (selectedComparisons.length === 0) return true
+                    // Otherwise, only show selected comparisons
+                    return selectedComparisons.includes(splitKey)
+                  })
+                  .map(([splitKey, sessions]) => (
                   sessions.length > 1 && (
                     <div key={splitKey} className="bg-gray-800 rounded-xl p-4">
                       <h4 className="text-white font-medium mb-3">{splitKey}</h4>
@@ -873,34 +882,53 @@ const SplitComparison = ({ workouts }) => {
             </div>
           )}
 
+          {/* Muscle Group Progress */}
+          <MuscleGroupProgress 
+            workouts={filteredWorkouts} 
+            timeRange={timeRange}
+          />
+
           {/* Summary Stats */}
           <div className="bg-gray-800 rounded-xl p-4">
-            <h3 className="text-white font-medium mb-4">Split Summary</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {chartData.map((split) => (
-                <div key={split.name} className="bg-gray-700 rounded-lg p-4">
-                  <h4 className="text-white font-medium text-sm mb-3 truncate">{split.name}</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Sessions</span>
-                      <span className="text-white font-medium">{split.sessions}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Avg Volume</span>
-                      <span className="text-white font-medium">{Math.round(split.volume)} kg</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Avg Sets</span>
-                      <span className="text-white font-medium">{Math.round(split.sets)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Max Weight</span>
-                      <span className="text-white font-medium">{Math.round(split.maxWeight)} kg</span>
+            <button 
+              onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
+              className="w-full flex items-center justify-between text-white font-medium mb-4 hover:text-blue-400 transition-colors"
+            >
+              <span>Split Summary</span>
+              {isSummaryExpanded ? (
+                <ChevronUp size={20} className="text-gray-400" />
+              ) : (
+                <ChevronDown size={20} className="text-gray-400" />
+              )}
+            </button>
+            
+            {isSummaryExpanded && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {chartData.map((split) => (
+                  <div key={split.name} className="bg-gray-700 rounded-lg p-4">
+                    <h4 className="text-white font-medium text-sm mb-3 truncate">{split.name}</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Sessions</span>
+                        <span className="text-white font-medium">{split.sessions}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Avg Volume</span>
+                        <span className="text-white font-medium">{Math.round(split.volume)} kg</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Avg Sets</span>
+                        <span className="text-white font-medium">{Math.round(split.sets)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Max Weight</span>
+                        <span className="text-white font-medium">{Math.round(split.maxWeight)} kg</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : (

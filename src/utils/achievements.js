@@ -81,95 +81,122 @@ export const ACHIEVEMENTS = {
     condition: (workouts) => workouts.length >= 50
   },
   
-  // Strength Achievements
-  HEAVY_LIFTER: {
-    id: 'heavy_lifter',
-    title: 'Heavy Lifter',
-    description: 'Lift 100kg+ in a single set',
+  // Hypertrophy-Focused Strength Achievements
+  MUSCLE_BUILDER: {
+    id: 'muscle_builder',
+    title: 'Muscle Builder',
+    description: 'Complete 50 sets in the 6-12 rep range (optimal hypertrophy)',
     icon: '💪',
     category: ACHIEVEMENT_CATEGORIES.STRENGTH,
     rarity: 'uncommon',
     points: 100,
     condition: (workouts) => {
-      return workouts.some(workout =>
-        workout.exercises.some(exercise =>
-          exercise.sets.some(set => (set.weight || 0) >= 100)
-        )
+      const hypertrophySets = workouts.reduce((count, workout) =>
+        count + workout.exercises.reduce((exerciseCount, exercise) =>
+          exerciseCount + exercise.sets.filter(set => 
+            set.reps >= 6 && set.reps <= 12
+          ).length, 0
+        ), 0
       )
+      return hypertrophySets >= 50
     }
   },
   
-  STRENGTH_BEAST: {
-    id: 'strength_beast',
-    title: 'Strength Beast',
-    description: 'Lift 150kg+ in a single set',
-    icon: '🦍',
+  PROGRESSIVE_OVERLOADER: {
+    id: 'progressive_overloader',
+    title: 'Progressive Overloader',
+    description: 'Increase weight on the same exercise 5 times',
+    icon: '📈',
     category: ACHIEVEMENT_CATEGORIES.STRENGTH,
     rarity: 'rare',
     points: 200,
     condition: (workouts) => {
-      return workouts.some(workout =>
-        workout.exercises.some(exercise =>
-          exercise.sets.some(set => (set.weight || 0) >= 150)
-        )
-      )
-    }
-  },
-  
-  POWERHOUSE: {
-    id: 'powerhouse',
-    title: 'Powerhouse',
-    description: 'Lift 200kg+ in a single set',
-    icon: '⚡',
-    category: ACHIEVEMENT_CATEGORIES.STRENGTH,
-    rarity: 'legendary',
-    points: 500,
-    condition: (workouts) => {
-      return workouts.some(workout =>
-        workout.exercises.some(exercise =>
-          exercise.sets.some(set => (set.weight || 0) >= 200)
-        )
-      )
-    }
-  },
-  
-  // Volume Achievements
-  VOLUME_CRUSHER: {
-    id: 'volume_crusher',
-    title: 'Volume Crusher',
-    description: 'Complete 1000kg total volume in a single workout',
-    icon: '📈',
-    category: ACHIEVEMENT_CATEGORIES.VOLUME,
-    rarity: 'uncommon',
-    points: 75,
-    condition: (workouts) => {
-      return workouts.some(workout => {
-        const totalVolume = workout.exercises.reduce((sum, exercise) =>
-          sum + exercise.sets.reduce((setSum, set) =>
-            setSum + ((set.weight || 0) * (set.reps || 0)), 0
-          ), 0
-        )
-        return totalVolume >= 1000
+      const exerciseProgress = {}
+      const sortedWorkouts = [...workouts].sort((a, b) => new Date(a.date) - new Date(b.date))
+      
+      sortedWorkouts.forEach(workout => {
+        workout.exercises.forEach(exercise => {
+          const exerciseName = exercise.name?.toLowerCase()
+          if (!exerciseName) return
+          
+          const maxWeight = Math.max(...exercise.sets.map(set => set.weight || 0))
+          if (maxWeight === 0) return
+          
+          if (!exerciseProgress[exerciseName]) {
+            exerciseProgress[exerciseName] = []
+          }
+          exerciseProgress[exerciseName].push(maxWeight)
+        })
+      })
+      
+      return Object.values(exerciseProgress).some(weights => {
+        let increases = 0
+        for (let i = 1; i < weights.length; i++) {
+          if (weights[i] > weights[i - 1]) {
+            increases++
+            if (increases >= 5) return true
+          }
+        }
+        return false
       })
     }
   },
   
-  VOLUME_KING: {
-    id: 'volume_king',
-    title: 'Volume King',
-    description: 'Complete 5000kg total volume in a single workout',
-    icon: '👑',
+  HYPERTROPHY_SPECIALIST: {
+    id: 'hypertrophy_specialist',
+    title: 'Hypertrophy Specialist',
+    description: 'Complete 200 sets in the 8-15 rep range (muscle growth zone)',
+    icon: '🧬',
+    category: ACHIEVEMENT_CATEGORIES.STRENGTH,
+    rarity: 'legendary',
+    points: 500,
+    condition: (workouts) => {
+      const hypertrophySets = workouts.reduce((count, workout) =>
+        count + workout.exercises.reduce((exerciseCount, exercise) =>
+          exerciseCount + exercise.sets.filter(set => 
+            set.reps >= 8 && set.reps <= 15
+          ).length, 0
+        ), 0
+      )
+      return hypertrophySets >= 200
+    }
+  },
+  
+  // Hypertrophy Volume Achievements
+  VOLUME_TITAN: {
+    id: 'volume_titan',
+    title: 'Volume Titan',
+    description: 'Complete 100+ total sets in a single workout',
+    icon: '🏔️',
     category: ACHIEVEMENT_CATEGORIES.VOLUME,
-    rarity: 'rare',
-    points: 150,
+    rarity: 'epic',
+    points: 1000,
     condition: (workouts) => {
       return workouts.some(workout => {
-        const totalVolume = workout.exercises.reduce((sum, exercise) =>
+        const totalSets = workout.exercises.reduce((sum, exercise) =>
+          sum + exercise.sets.length, 0
+        )
+        return totalSets >= 100
+      })
+    }
+  },
+  
+  THOUSAND_REP_WORKOUT: {
+    id: 'thousand_rep_workout',
+    title: 'Thousand Rep Workout',
+    description: 'Complete 1000+ total reps in a single workout',
+    icon: '🔥',
+    category: ACHIEVEMENT_CATEGORIES.VOLUME,
+    rarity: 'epic',
+    points: 1000,
+    condition: (workouts) => {
+      return workouts.some(workout => {
+        const totalReps = workout.exercises.reduce((sum, exercise) =>
           sum + exercise.sets.reduce((setSum, set) =>
-            setSum + ((set.weight || 0) * (set.reps || 0)), 0
+            setSum + (set.reps || 0), 0
           ), 0
         )
-        return totalVolume >= 5000
+        return totalReps >= 1000
       })
     }
   },
@@ -345,34 +372,14 @@ export const ACHIEVEMENTS = {
   },
 
   // Advanced Hypertrophy Achievements
-  HYPERTROPHY_MASTER: {
-    id: 'hypertrophy_master',
-    title: 'Hypertrophy Master',
-    description: 'Complete 20 sets in the 8-12 rep range in a single workout',
-    icon: '💎',
-    category: ACHIEVEMENT_CATEGORIES.VOLUME,
-    rarity: 'rare',
-    points: 200,
-    condition: (workouts) => {
-      return workouts.some(workout => {
-        const hypertrophySets = workout.exercises.reduce((count, exercise) =>
-          count + exercise.sets.filter(set => 
-            set.reps >= 8 && set.reps <= 12
-          ).length, 0
-        )
-        return hypertrophySets >= 20
-      })
-    }
-  },
-
-  TIME_UNDER_TENSION: {
-    id: 'time_under_tension',
-    title: 'Time Under Tension',
-    description: 'Complete 100 total sets in the 8-15 rep range',
-    icon: '⏱️',
-    category: ACHIEVEMENT_CATEGORIES.VOLUME,
-    rarity: 'rare',
-    points: 250,
+  HYPERTROPHY_SCIENTIST: {
+    id: 'hypertrophy_scientist',
+    title: 'Hypertrophy Scientist',
+    description: 'Complete 1000 sets in the 8-15 rep range (total hypertrophy zone)',
+    icon: '🔬',
+    category: ACHIEVEMENT_CATEGORIES.PROGRESSION,
+    rarity: 'epic',
+    points: 750,
     condition: (workouts) => {
       const hypertrophySets = workouts.reduce((count, workout) =>
         count + workout.exercises.reduce((exerciseCount, exercise) =>
@@ -381,27 +388,54 @@ export const ACHIEVEMENTS = {
           ).length, 0
         ), 0
       )
-      return hypertrophySets >= 100
+      return hypertrophySets >= 1000
     }
   },
 
-  MUSCLE_SCULPTOR: {
-    id: 'muscle_sculptor',
-    title: 'Muscle Sculptor',
-    description: 'Complete 50 sets with 12-15 reps (perfect hypertrophy range)',
-    icon: '🎨',
-    category: ACHIEVEMENT_CATEGORIES.VOLUME,
-    rarity: 'uncommon',
-    points: 150,
+  STRENGTH_ARCHAEOLOGIST: {
+    id: 'strength_archaeologist',
+    title: 'Strength Archaeologist',
+    description: 'Track the same exercise for 100+ workouts',
+    icon: '🏛️',
+    category: ACHIEVEMENT_CATEGORIES.PROGRESSION,
+    rarity: 'epic',
+    points: 750,
     condition: (workouts) => {
-      const sculptingSets = workouts.reduce((count, workout) =>
-        count + workout.exercises.reduce((exerciseCount, exercise) =>
-          exerciseCount + exercise.sets.filter(set => 
-            set.reps >= 12 && set.reps <= 15
-          ).length, 0
-        ), 0
+      const exerciseCounts = {}
+      workouts.forEach(workout => {
+        workout.exercises.forEach(exercise => {
+          const exerciseName = exercise.name?.toLowerCase()
+          if (exerciseName) {
+            exerciseCounts[exerciseName] = (exerciseCounts[exerciseName] || 0) + 1
+          }
+        })
+      })
+      return Math.max(...Object.values(exerciseCounts), 0) >= 100
+    }
+  },
+
+  DOUBLE_BODYWEIGHT_SQUAT: {
+    id: 'double_bodyweight_squat',
+    title: 'Double Bodyweight Squat',
+    description: 'Squat 2x your bodyweight for multiple reps',
+    icon: '🏋️‍♂️',
+    category: ACHIEVEMENT_CATEGORIES.STRENGTH,
+    rarity: 'legendary',
+    points: 1000,
+    condition: (workouts) => {
+      // Get user's bodyweight from localStorage
+      const measurements = localStorage.getItem('gymgenie-measurements')
+      const bodyweight = measurements ? JSON.parse(measurements).weight || 70 : 70
+      const targetWeight = bodyweight * 2
+      
+      return workouts.some(workout =>
+        workout.exercises.some(exercise => {
+          const isSquat = exercise.name?.toLowerCase().includes('squat')
+          return isSquat && exercise.sets.some(set => 
+            (set.weight || 0) >= targetWeight && (set.reps || 0) >= 3
+          )
+        })
       )
-      return sculptingSets >= 50
     }
   },
 
@@ -2859,6 +2893,116 @@ export const getAchievementProgress = (achievement, workouts) => {
         }, 0), 0
       )
       return { current: compoundReps, target: 500 }
+    
+    // New Hypertrophy-Focused Achievements Progress
+    case 'muscle_builder':
+      const muscleBuilderSets = workouts.reduce((count, workout) =>
+        count + workout.exercises.reduce((exerciseCount, exercise) =>
+          exerciseCount + exercise.sets.filter(set => 
+            set.reps >= 6 && set.reps <= 12
+          ).length, 0
+        ), 0
+      )
+      return { current: muscleBuilderSets, target: 50 }
+    
+    case 'progressive_overloader':
+      const exerciseProgress = {}
+      const sortedWorkouts = [...workouts].sort((a, b) => new Date(a.date) - new Date(b.date))
+      
+      sortedWorkouts.forEach(workout => {
+        workout.exercises.forEach(exercise => {
+          const exerciseName = exercise.name?.toLowerCase()
+          if (!exerciseName) return
+          
+          const maxWeight = Math.max(...exercise.sets.map(set => set.weight || 0))
+          if (maxWeight === 0) return
+          
+          if (!exerciseProgress[exerciseName]) {
+            exerciseProgress[exerciseName] = []
+          }
+          exerciseProgress[exerciseName].push(maxWeight)
+        })
+      })
+      
+      let maxIncreases = 0
+      Object.values(exerciseProgress).forEach(weights => {
+        let increases = 0
+        for (let i = 1; i < weights.length; i++) {
+          if (weights[i] > weights[i - 1]) {
+            increases++
+          }
+        }
+        maxIncreases = Math.max(maxIncreases, increases)
+      })
+      return { current: maxIncreases, target: 5 }
+    
+    case 'hypertrophy_specialist':
+      const hypertrophySpecialistSets = workouts.reduce((count, workout) =>
+        count + workout.exercises.reduce((exerciseCount, exercise) =>
+          exerciseCount + exercise.sets.filter(set => 
+            set.reps >= 8 && set.reps <= 15
+          ).length, 0
+        ), 0
+      )
+      return { current: hypertrophySpecialistSets, target: 200 }
+    
+    case 'volume_titan':
+      const maxSetsInWorkout = Math.max(...workouts.map(workout => 
+        workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)
+      ), 0)
+      return { current: maxSetsInWorkout, target: 100 }
+    
+    case 'thousand_rep_workout':
+      const maxRepsInWorkout = Math.max(...workouts.map(workout => 
+        workout.exercises.reduce((sum, exercise) =>
+          sum + exercise.sets.reduce((setSum, set) =>
+            setSum + (set.reps || 0), 0
+          ), 0
+        )
+      ), 0)
+      return { current: maxRepsInWorkout, target: 1000 }
+    
+    case 'hypertrophy_scientist':
+      const hypertrophyScientistSets = workouts.reduce((count, workout) =>
+        count + workout.exercises.reduce((exerciseCount, exercise) =>
+          exerciseCount + exercise.sets.filter(set => 
+            set.reps >= 8 && set.reps <= 15
+          ).length, 0
+        ), 0
+      )
+      return { current: hypertrophyScientistSets, target: 1000 }
+    
+    case 'strength_archaeologist':
+      const exerciseCounts = {}
+      workouts.forEach(workout => {
+        workout.exercises.forEach(exercise => {
+          const exerciseName = exercise.name?.toLowerCase()
+          if (exerciseName) {
+            exerciseCounts[exerciseName] = (exerciseCounts[exerciseName] || 0) + 1
+          }
+        })
+      })
+      const maxExerciseCount = Math.max(...Object.values(exerciseCounts), 0)
+      return { current: maxExerciseCount, target: 100 }
+    
+    case 'double_bodyweight_squat':
+      const measurements = localStorage.getItem('gymgenie-measurements')
+      const bodyweight = measurements ? JSON.parse(measurements).weight || 70 : 70
+      const targetWeight = bodyweight * 2
+      
+      const maxSquatWeight = Math.max(...workouts.flatMap(workout =>
+        workout.exercises.flatMap(exercise => {
+          const isSquat = exercise.name?.toLowerCase().includes('squat')
+          return isSquat ? exercise.sets.map(set => set.weight || 0) : [0]
+        })
+      ), 0)
+      
+      return { 
+        current: Math.round(maxSquatWeight), 
+        target: Math.round(targetWeight),
+        unit: 'kg',
+        note: `Target: ${Math.round(targetWeight)}kg (2x bodyweight)`
+      }
     
     default:
       return null

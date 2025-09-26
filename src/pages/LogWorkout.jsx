@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
 import AppleDropdown from '../components/AppleDropdown'
-import { Plus, Trash2, Play, Square, Save, X, Dumbbell, Timer, Target } from 'lucide-react'
-import { exerciseDatabase, getMuscleGroups, getExercisesForMuscleGroup, isBodyweightExercise } from '../data/exercises'
+import { Plus, Trash2, Play, Square, Save, X, Dumbbell, Timer, Target, Search } from 'lucide-react'
+import { exerciseDatabase, getMuscleGroups, getExercisesForMuscleGroup, isBodyweightExercise, searchExercises } from '../data/exercises'
 
 const LogWorkout = () => {
   const { 
@@ -21,6 +21,7 @@ const LogWorkout = () => {
   const [selectedExercise, setSelectedExercise] = useState('')
   const [exerciseType, setExerciseType] = useState('strength')
   const [customExercise, setCustomExercise] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Exercise database
   const muscleGroups = getMuscleGroups()
@@ -42,6 +43,7 @@ const LogWorkout = () => {
     setCustomExercise('')
     setSelectedMuscleGroup('')
     setSelectedExercise('')
+    setSearchQuery('')
   }
 
   const handleAddSet = (exerciseId) => {
@@ -161,11 +163,14 @@ const LogWorkout = () => {
           setSelectedExercise={setSelectedExercise}
           customExercise={customExercise}
           setCustomExercise={setCustomExercise}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
           onAddExercise={handleAddExercise}
           onClose={() => {
             setShowExerciseModal(false)
             setSelectedExercise('')
             setSelectedMuscleGroup('')
+            setSearchQuery('')
           }}
         />
       )}
@@ -457,11 +462,42 @@ const ExerciseModal = ({
   setSelectedExercise,
   customExercise,
   setCustomExercise,
+  searchQuery,
+  setSearchQuery,
   onAddExercise,
   onClose
 }) => {
   const muscleGroups = getMuscleGroups()
-  const exercises = selectedMuscleGroup ? getExercisesForMuscleGroup(selectedMuscleGroup) : []
+  
+  // Get exercises based on search query and muscle group selection
+  const getFilteredExercises = () => {
+    if (exerciseType === 'cardio') {
+      const cardioExercises = getExercisesForMuscleGroup('cardio')
+      return searchQuery 
+        ? cardioExercises.filter(exercise => 
+            exercise.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : cardioExercises
+    }
+    
+    // For strength exercises
+    if (searchQuery) {
+      // If searching, search across all exercises regardless of muscle group
+      const searchResults = searchExercises(searchQuery)
+      return searchResults
+        .filter(result => result.muscleGroup !== 'cardio') // Exclude cardio from strength search
+        .map(result => ({
+          name: result.exercise,
+          muscleGroup: result.muscleGroup
+        }))
+    }
+    
+    // If no search query, use selected muscle group
+    const allExercises = selectedMuscleGroup ? getExercisesForMuscleGroup(selectedMuscleGroup) : []
+    return allExercises.map(exercise => ({ name: exercise, muscleGroup: selectedMuscleGroup }))
+  }
+  
+  const exercises = getFilteredExercises()
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60] p-4">
@@ -509,35 +545,142 @@ const ExerciseModal = ({
           </div>
         </div>
 
-        {exerciseType === 'strength' ? (
-          <>
-            {/* Muscle Group Selection */}
-            <div className="mb-4">
-              <AppleDropdown
-                label="Muscle Group"
-                value={selectedMuscleGroup}
-                onChange={(value) => setSelectedMuscleGroup(value)}
-                options={muscleGroups.map(group => ({
-                  value: group,
-                  label: group.charAt(0).toUpperCase() + group.slice(1)
-                }))}
-                placeholder="Select muscle group"
-                className="mb-4"
-              />
+        {/* Search Input */}
+        <div className="mb-6">
+          <label className="fitness-label block mb-3">
+            Search Exercises
+          </label>
+          <div className="relative">
+            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Type to search exercises..."
+              className="fitness-input pl-10 w-full"
+            />
+          </div>
+          
+          {/* Live Search Results */}
+          {searchQuery && exercises.length > 0 && (
+            <div className="mt-3 bg-gray-800 rounded-xl border border-gray-700 max-h-60 overflow-y-auto">
+              <div className="p-3 border-b border-gray-700">
+                <h4 className="text-sm font-medium text-gray-400">
+                  {exercises.length} result{exercises.length !== 1 ? 's' : ''} found
+                </h4>
+              </div>
+              <div className="p-2 space-y-1">
+                {exercises.slice(0, 10).map((exercise, index) => {
+                  const exerciseName = typeof exercise === 'string' ? exercise : exercise.name
+                  const muscleGroup = typeof exercise === 'string' ? 'unknown' : exercise.muscleGroup
+                  
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        onAddExercise({ name: exerciseName })
+                        setSearchQuery('')
+                      }}
+                      className="w-full text-left p-3 rounded-lg hover:bg-gray-700 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-medium text-sm group-hover:text-blue-400">
+                            {exerciseName}
+                          </div>
+                          {muscleGroup !== 'unknown' && (
+                            <div className="text-xs text-gray-400 capitalize mt-1">
+                              {muscleGroup}
+                            </div>
+                          )}
+                        </div>
+                        <Plus size={16} className="text-gray-400 group-hover:text-blue-400" />
+                      </div>
+                    </button>
+                  )
+                })}
+                {exercises.length > 10 && (
+                  <div className="text-center p-2 text-xs text-gray-500">
+                    Showing first 10 results. Keep typing to refine search.
+                  </div>
+                )}
+              </div>
             </div>
+          )}
+          
+          {/* No Results Message */}
+          {searchQuery && exercises.length === 0 && (
+            <div className="mt-3 p-4 bg-gray-800 rounded-xl border border-gray-700 text-center">
+              <div className="text-gray-400 text-sm">
+                No exercises found for "{searchQuery}"
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Try a different search term or add it as a custom exercise below
+              </div>
+            </div>
+          )}
+        </div>
 
-            {/* Exercise Selection */}
-            {selectedMuscleGroup && (
+        {/* Traditional Selection (only show when not searching) */}
+        {!searchQuery && (
+          exerciseType === 'strength' ? (
+            <>
+              {/* Muscle Group Selection */}
               <div className="mb-4">
                 <AppleDropdown
-                  label="Exercise"
+                  label="Muscle Group"
+                  value={selectedMuscleGroup}
+                  onChange={(value) => setSelectedMuscleGroup(value)}
+                  options={muscleGroups.map(group => ({
+                    value: group,
+                    label: group.charAt(0).toUpperCase() + group.slice(1)
+                  }))}
+                  placeholder="Select muscle group"
+                  className="mb-4"
+                />
+              </div>
+
+              {/* Exercise Selection */}
+              {selectedMuscleGroup && exercises.length > 0 && (
+                <div className="mb-4">
+                  <AppleDropdown
+                    label="Exercise"
+                    value={selectedExercise}
+                    onChange={(value) => setSelectedExercise(value)}
+                    options={exercises.map(exercise => ({
+                      value: typeof exercise === 'string' ? exercise : exercise.name,
+                      label: typeof exercise === 'string' 
+                        ? exercise 
+                        : exercise.name
+                    }))}
+                    placeholder="Select exercise"
+                    className="mb-4"
+                  />
+                  
+                  {selectedExercise && (
+                    <button
+                      onClick={() => onAddExercise({ name: selectedExercise })}
+                      className="fitness-button w-full"
+                    >
+                      <Plus size={16} className="mr-2" />
+                      Add {selectedExercise}
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            exercises.length > 0 && (
+              <div className="mb-4">
+                <AppleDropdown
+                  label="Cardio Exercise"
                   value={selectedExercise}
                   onChange={(value) => setSelectedExercise(value)}
                   options={exercises.map(exercise => ({
                     value: exercise,
                     label: exercise
                   }))}
-                  placeholder="Select exercise"
+                  placeholder="Select cardio exercise"
                   className="mb-4"
                 />
                 
@@ -551,32 +694,8 @@ const ExerciseModal = ({
                   </button>
                 )}
               </div>
-            )}
-          </>
-        ) : (
-          <div className="mb-4">
-            <AppleDropdown
-              label="Cardio Exercise"
-              value={selectedExercise}
-              onChange={(value) => setSelectedExercise(value)}
-              options={getExercisesForMuscleGroup('cardio').map(exercise => ({
-                value: exercise,
-                label: exercise
-              }))}
-              placeholder="Select cardio exercise"
-              className="mb-4"
-            />
-            
-            {selectedExercise && (
-              <button
-                onClick={() => onAddExercise({ name: selectedExercise })}
-                className="fitness-button w-full"
-              >
-                <Plus size={16} className="mr-2" />
-                Add {selectedExercise}
-              </button>
-            )}
-          </div>
+            )
+          )
         )}
 
         {/* Custom Exercise */}

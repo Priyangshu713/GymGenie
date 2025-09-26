@@ -109,13 +109,25 @@ const Achievements = () => {
           <div className="mb-4">
             <div className="flex justify-between text-sm text-gray-400 mb-2">
               <span>Progress</span>
-              <span className="font-medium">{progress.current}/{progress.target}</span>
+              <span className="font-medium">
+                {progress.current}/{progress.target}{progress.unit ? ` ${progress.unit}` : ''}
+              </span>
             </div>
-            <div className="w-full bg-gray-800 rounded-full h-3">
+            <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
               <div 
                 className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-500"
                 style={{ width: `${Math.min((progress.current / progress.target) * 100, 100)}%` }}
               />
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-gray-500">
+                {Math.round((progress.current / progress.target) * 100)}% complete
+              </span>
+              {progress.note && (
+                <span className="text-xs text-blue-400 font-medium">
+                  {progress.note}
+                </span>
+              )}
             </div>
           </div>
         )}
