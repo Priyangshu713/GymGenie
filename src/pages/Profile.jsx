@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { setGeminiApiKey, getGeminiApiKey, generateWorkoutInsights, analyzeSplit, initializeAI } from '../services/aiService'
 import { format, subDays, isAfter, isToday, isSameDay } from 'date-fns'
+import { isBodyweightExercise } from '../data/exercises'
 
 const Profile = () => {
   const { isDark, toggleTheme } = useTheme()
@@ -805,17 +806,19 @@ const Profile = () => {
           let exerciseMaxWeight = 0
 
           exercise.sets.forEach(set => {
-            const weight = set.weight || 0
-            const reps = set.reps || 0
-            const volume = weight * reps
+            const isBodyweight = set.isBodyweight || (isBodyweightExercise(exercise.name) && (set.weight === 0 || set.weight === undefined));
+            const bodyweight = JSON.parse(localStorage.getItem('gymgenie-measurements'))?.weight || 0;
+            const effectiveWeight = isBodyweight ? (bodyweight + (set.weight || 0)) : (set.weight || 0);
+            const reps = set.reps || 0;
+            const volume = effectiveWeight * reps;
 
-            exerciseReps += reps
-            exerciseVolume += volume
-            exerciseMaxWeight = Math.max(exerciseMaxWeight, weight)
+            exerciseReps += reps;
+            exerciseVolume += volume;
+            exerciseMaxWeight = Math.max(exerciseMaxWeight, effectiveWeight);
             
-            workoutReps += reps
-            workoutVolume += volume
-            workoutMaxWeight = Math.max(workoutMaxWeight, weight)
+            workoutReps += reps;
+            workoutVolume += volume;
+            workoutMaxWeight = Math.max(workoutMaxWeight, effectiveWeight);
           })
 
           workoutSets += exerciseSets

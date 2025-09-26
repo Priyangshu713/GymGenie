@@ -222,14 +222,40 @@ const ExerciseCard = ({ exercise, index, onAddSet, onUpdateSet, onDeleteSet }) =
 const SetRow = ({ set, setIndex, exerciseType, exerciseName, onUpdate, onDelete }) => {
   const canBeBodyweight = isBodyweightExercise(exerciseName)
   const isBodyweight = set.isBodyweight || (canBeBodyweight && (set.weight === 0 || set.weight === undefined))
+  const [additionalWeight, setAdditionalWeight] = useState(0)
+  const [bodyweight, setBodyweight] = useState(() => {
+    const saved = localStorage.getItem('gymgenie-measurements')
+    return saved ? JSON.parse(saved).weight || 0 : 0
+  })
 
   const handleBodyweightToggle = () => {
     if (canBeBodyweight) {
       const newIsBodyweight = !isBodyweight
       onUpdate({ 
         isBodyweight: newIsBodyweight,
-        weight: newIsBodyweight ? 0 : set.weight || 0
+        weight: newIsBodyweight ? (additionalWeight || 0) : (set.weight || 0)
       })
+    }
+  }
+
+  const handleWeightChange = (e) => {
+    // Get the raw input value first
+    const rawValue = e.target.value;
+    // Only parse to float if there's an actual value
+    const value = rawValue === '' ? 0 : parseFloat(rawValue) || 0;
+    
+    if (isBodyweight) {
+      // Store the raw value in state to allow clearing
+      setAdditionalWeight(rawValue === '' ? '' : value);
+      onUpdate({ 
+        weight: value,
+        isBodyweight: true
+      });
+    } else {
+      onUpdate({ 
+        weight: value,
+        isBodyweight: false
+      });
     }
   }
 
@@ -266,17 +292,30 @@ const SetRow = ({ set, setIndex, exerciseType, exerciseName, onUpdate, onDelete 
             />
           </div>
           <div className="flex-1">
-            <input
-              type="number"
-              placeholder={isBodyweight ? "0 (Bodyweight)" : "Weight (kg)"}
-              value={isBodyweight ? 0 : (set.weight || '')}
-              onChange={(e) => onUpdate({ 
-                weight: parseFloat(e.target.value) || 0,
-                isBodyweight: parseFloat(e.target.value) === 0 && canBeBodyweight
-              })}
-              className="fitness-input text-sm"
-              disabled={isBodyweight}
-            />
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                placeholder="0.0"
+                value={isBodyweight ? (additionalWeight === 0 ? '' : additionalWeight) : (set.weight || '')}
+                onChange={handleWeightChange}
+                className="fitness-input text-sm pr-10 w-full"
+              />
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">
+                {isBodyweight ? '+kg' : 'kg'}
+              </div>
+              {isBodyweight && additionalWeight > 0 && (
+                <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center">
+                  {additionalWeight}
+                </div>
+              )}
+            </div>
+            {isBodyweight && additionalWeight > 0 && (
+              <div className="text-xs text-gray-400 mt-1">
+                Total: {(parseFloat(bodyweight) + parseFloat(additionalWeight || 0)).toFixed(1)}kg
+              </div>
+            )}
           </div>
           <div className="flex-1">
             <input

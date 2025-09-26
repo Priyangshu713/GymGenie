@@ -240,17 +240,47 @@ const History = () => {
                                 
                                 if (bodyweightSets.length === exercise.sets.length) {
                                   // All sets are bodyweight
-                                  return <span>💪 Bodyweight</span>
+                                  const hasAdditionalWeight = exercise.sets.some(set => set.weight > 0);
+                                  const bodyweight = JSON.parse(localStorage.getItem('gymgenie-measurements'))?.weight || 0;
+                                  if (hasAdditionalWeight) {
+                                    const avgAdditionalWeight = (exercise.sets.reduce((total, set) => total + (set.weight || 0), 0) / exercise.sets.length).toFixed(1);
+                                    const totalWeight = (parseFloat(bodyweight) + parseFloat(avgAdditionalWeight)).toFixed(1);
+                                    return <span>💪 {parseFloat(totalWeight).toFixed(1)}kg <span className="text-xs text-gray-400">(BW +{avgAdditionalWeight}kg)</span></span>;
+                                  }
+                                  return <span>💪 {parseFloat(bodyweight).toFixed(1)}kg</span>;
                                 } else if (weightedSets.length === exercise.sets.length) {
                                   // All sets are weighted
-                                  const avgWeight = (exercise.sets.reduce((total, set) => total + (set.weight || 0), 0) / exercise.sets.length).toFixed(0)
-                                  return <span>{avgWeight} kg/set (avg)</span>
+                                  const avgWeight = (exercise.sets.reduce((total, set) => {
+                                    // If it's a bodyweight exercise with additional weight, add bodyweight
+                                    if (isBodyweightExercise(exercise.name) && set.isBodyweight) {
+                                      const bodyweight = JSON.parse(localStorage.getItem('gymgenie-measurements'))?.weight || 0;
+                                      return total + bodyweight + (set.weight || 0);
+                                    }
+                                    return total + (set.weight || 0);
+                                  }, 0) / exercise.sets.length).toFixed(1);
+                                  return <span>{avgWeight} kg/set (avg)</span>;
                                 } else {
                                   // Mixed bodyweight and weighted
-                                  const avgWeight = weightedSets.length > 0 
-                                    ? (weightedSets.reduce((total, set) => total + (set.weight || 0), 0) / weightedSets.length).toFixed(0)
-                                    : 0
-                                  return <span>{bodyweightSets.length}x💪 + {weightedSets.length}x{avgWeight}kg</span>
+                                  const avgBodyweightAdditional = bodyweightSets.length > 0 
+                                    ? (bodyweightSets.reduce((total, set) => total + (set.weight || 0), 0) / bodyweightSets.length).toFixed(1)
+                                    : 0;
+                                  const avgWeighted = weightedSets.length > 0 
+                                    ? (weightedSets.reduce((total, set) => total + (set.weight || 0), 0) / weightedSets.length).toFixed(1)
+                                    : 0;
+                                  
+                                  let displayText = [];
+                                  if (bodyweightSets.length > 0) {
+                                    if (avgBodyweightAdditional > 0) {
+                                      displayText.push(`${bodyweightSets.length}x💪+${avgBodyweightAdditional}kg`);
+                                    } else {
+                                      displayText.push(`${bodyweightSets.length}x💪`);
+                                    }
+                                  }
+                                  if (weightedSets.length > 0) {
+                                    displayText.push(`${weightedSets.length}x${avgWeighted}kg`);
+                                  }
+                                  
+                                  return <span>{displayText.join(' + ')}</span>;
                                 }
                               })()}
                               <span>RPE {(exercise.sets.reduce((total, set) => total + (set.difficulty || 0), 0) / exercise.sets.length).toFixed(1)}</span>
