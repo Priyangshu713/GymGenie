@@ -35,7 +35,7 @@ const LogWorkout = () => {
     const exerciseData = {
       name: exercise.name || customExercise,
       type: exerciseType,
-      muscleGroup: selectedMuscleGroup,
+      muscleGroup: exercise.muscleGroup || selectedMuscleGroup || 'custom',
       equipment: exercise.equipment || 'custom'
     }
     addExercise(exerciseData)
@@ -578,7 +578,7 @@ const ExerciseModal = ({
                     <button
                       key={index}
                       onClick={() => {
-                        onAddExercise({ name: exerciseName })
+                        onAddExercise({ name: exerciseName, muscleGroup: muscleGroup })
                         setSearchQuery('')
                       }}
                       className="w-full text-left p-3 rounded-lg hover:bg-gray-700 transition-colors group"
@@ -659,7 +659,7 @@ const ExerciseModal = ({
                   
                   {selectedExercise && (
                     <button
-                      onClick={() => onAddExercise({ name: selectedExercise })}
+                      onClick={() => onAddExercise({ name: selectedExercise, muscleGroup: selectedMuscleGroup })}
                       className="fitness-button w-full"
                     >
                       <Plus size={16} className="mr-2" />
@@ -686,7 +686,7 @@ const ExerciseModal = ({
                 
                 {selectedExercise && (
                   <button
-                    onClick={() => onAddExercise({ name: selectedExercise })}
+                    onClick={() => onAddExercise({ name: selectedExercise, muscleGroup: 'cardio' })}
                     className="fitness-button w-full"
                   >
                     <Plus size={16} className="mr-2" />
@@ -712,7 +712,7 @@ const ExerciseModal = ({
               className="fitness-input flex-1"
             />
             <button
-              onClick={() => onAddExercise({ name: customExercise })}
+              onClick={() => onAddExercise({ name: customExercise, muscleGroup: selectedMuscleGroup || 'custom' })}
               disabled={!customExercise.trim()}
               className="fitness-button px-4 disabled:opacity-50"
             >

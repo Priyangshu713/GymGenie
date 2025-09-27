@@ -573,10 +573,37 @@ const Profile = () => {
               const intensity = set.intensity || 'slow'
               const duration = set.duration || 0
               const distance = set.distance || 0
+              const workoutDate = new Date(workout.date)
+              const formattedDate = workoutDate.toLocaleDateString('en-GB', {
+                weekday: 'short',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              }).replace(',', '')
               
               reportData.cardioAnalytics[`${timing}Workout`][intensity] += 1
               reportData.cardioAnalytics[`${timing}Workout`].totalDuration += duration
               reportData.cardioAnalytics[`${timing}Workout`].totalDistance += distance
+              
+              // Store cardio session dates
+              if (!reportData.cardioAnalytics[`${timing}Workout`].dates) {
+                reportData.cardioAnalytics[`${timing}Workout`].dates = []
+              }
+              if (!reportData.cardioAnalytics[`${timing}Workout`].dates.includes(formattedDate)) {
+                reportData.cardioAnalytics[`${timing}Workout`].dates.push(formattedDate)
+              }
+              
+              // Store detailed session info
+              if (!reportData.cardioAnalytics[`${timing}Workout`].sessions) {
+                reportData.cardioAnalytics[`${timing}Workout`].sessions = []
+              }
+              reportData.cardioAnalytics[`${timing}Workout`].sessions.push({
+                date: formattedDate,
+                exercise: exercise.name,
+                intensity: intensity,
+                duration: duration,
+                distance: distance
+              })
             })
           }
         })
@@ -959,43 +986,100 @@ const Profile = () => {
             }
           }
           
-          // Calculate progress trend (last 4 sessions)
+          // Store session data for later comparison
           const recentSessions = split.sessions
             .sort((a, b) => new Date(a.date) - new Date(b.date))
             .slice(-4)
           
           if (recentSessions.length >= 2) {
-            const firstVolume = recentSessions[0].volume
-            const lastVolume = recentSessions[recentSessions.length - 1].volume
+            // Calculate average volume for this split
+            const avgVolume = recentSessions.reduce((sum, s) => sum + s.volume, 0) / recentSessions.length
             
-            // Fix misleading percentage calculations
-            let progressPercent = 0
-            if (firstVolume > 0 && lastVolume > 0) {
-              progressPercent = ((lastVolume - firstVolume) / firstVolume) * 100
-            } else if (firstVolume === 0 && lastVolume > 0) {
-              // If starting from 0, show as 100% improvement instead of infinity
-              progressPercent = 100
-            } else if (firstVolume > 0 && lastVolume === 0) {
-              // If ending at 0, show as -100% decline
-              progressPercent = -100
-            }
-            // If both are 0, progressPercent remains 0
-            
-            // Only include progress data if this split is selected
+            // Store split data for comparison (will be processed after all splits are collected)
             if (selectedSplitsForPdf.length === 0 || selectedSplitsForPdf.includes(key)) {
-              reportData.splitProgress[key] = {
-                trend: progressPercent > 5 ? 'Improving' : progressPercent < -5 ? 'Declining' : 'Stable',
-                progressPercent: Math.round(progressPercent),
+              if (!reportData.splitProgressTemp) {
+                reportData.splitProgressTemp = []
+              }
+              reportData.splitProgressTemp.push({
+                key: key,
+                avgVolume: avgVolume,
                 recentSessions: recentSessions.map(s => ({
                   date: new Date(s.date).toLocaleDateString(),
                   volume: s.volume,
                   sets: s.sets
                 }))
-              }
+              })
             }
           }
         }
       })
+
+      // Process split progress comparisons (baseline vs others)
+      const splitComparisonEntries = Object.entries(reportData.splitComparison);
+      if (splitComparisonEntries.length > 0) {
+        // Sort splits to ensure consistent ordering (Thursday first, then Saturday, etc.)
+        const dayOrder = ['Thursday', 'Saturday', 'Monday', 'Tuesday', 'Wednesday', 'Friday', 'Sunday'];
+        splitComparisonEntries.sort(([a], [b]) => {
+          const getDayFromSplit = (splitName) => {
+            const day = splitName.split(' ')[0];
+            return dayOrder.indexOf(day);
+          };
+          return getDayFromSplit(a) - getDayFromSplit(b);
+        });
+
+        // First split is the baseline
+        const [baselineKey, baselineData] = splitComparisonEntries[0];
+        const baselineSplit = reportData.splitProgressTemp?.find(s => s.key === baselineKey);
+        
+        reportData.splitProgress[baselineKey] = {
+          trend: 'Base Trend',
+          progressPercent: 0,
+          isBaseline: true,
+          recentSessions: baselineSplit ? baselineSplit.recentSessions : []
+        };
+
+        // Compare other splits to the baseline using median session volume for more accuracy
+        for (let i = 1; i < splitComparisonEntries.length; i++) {
+          const [currentKey, currentData] = splitComparisonEntries[i];
+          const currentSplit = reportData.splitProgressTemp?.find(s => s.key === currentKey);
+          
+          // Calculate median session volume for more stable comparison
+          const getMedianVolume = (sessions) => {
+            if (!sessions || sessions.length === 0) return 0;
+            const volumes = sessions.map(s => s.volume).sort((a, b) => a - b);
+            const mid = Math.floor(volumes.length / 2);
+            return volumes.length % 2 === 0 ? (volumes[mid - 1] + volumes[mid]) / 2 : volumes[mid];
+          };
+          
+          const baselineMedian = getMedianVolume(baselineSplit?.recentSessions);
+          const currentMedian = getMedianVolume(currentSplit?.recentSessions);
+          
+          if (baselineMedian > 0) {
+            const progressPercent = ((currentMedian - baselineMedian) / baselineMedian) * 100;
+            
+            // Cap at reasonable limits and use more conservative thresholds
+            const cappedPercent = Math.max(-50, Math.min(50, progressPercent));
+            
+            reportData.splitProgress[currentKey] = {
+              trend: cappedPercent > 15 ? 'Higher' : cappedPercent < -15 ? 'Lower' : 'Similar',
+              progressPercent: Math.round(cappedPercent),
+              isBaseline: false,
+              recentSessions: currentSplit ? currentSplit.recentSessions : []
+            };
+          } else {
+            // Handle edge case where baseline is 0
+            reportData.splitProgress[currentKey] = {
+              trend: currentMedian > 0 ? 'Higher' : 'Similar',
+              progressPercent: currentMedian > 0 ? 25 : 0,
+              isBaseline: false,
+              recentSessions: currentSplit ? currentSplit.recentSessions : []
+            };
+          }
+        }
+        
+        // Clean up temporary data
+        delete reportData.splitProgressTemp;
+      }
 
       // Get top 10 exercises
       const sortedExercises = Object.entries(reportData.topExercises)
@@ -1328,7 +1412,17 @@ const Profile = () => {
                 })()}
                 
                 <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 30px;">
-                    ${Object.entries(data.splitComparison).map(([splitName, splitData]) => `
+                    ${Object.entries(data.splitComparison)
+                      .sort(([a], [b]) => {
+                        // Sort to ensure consistent ordering: Thursday first, then Saturday
+                        const dayOrder = ['Thursday', 'Saturday', 'Monday', 'Tuesday', 'Wednesday', 'Friday', 'Sunday'];
+                        const getDayFromSplit = (splitName) => {
+                          const day = splitName.split(' ')[0];
+                          return dayOrder.indexOf(day);
+                        };
+                        return getDayFromSplit(a) - getDayFromSplit(b);
+                      })
+                      .map(([splitName, splitData]) => `
                         <div class="card" style="border-left: 4px solid #3b82f6;">
                             <h4 style="color: #1f2937; margin: 0 0 15px 0; font-size: 1.1rem;">${splitName}</h4>
                             
@@ -1390,10 +1484,25 @@ const Profile = () => {
 
                             <!-- Progress Trend -->
                             ${data.splitProgress[splitName] ? `
-                                <div style="margin-top: 15px; padding: 10px; background: ${data.splitProgress[splitName].trend === 'Improving' ? '#f0fdf4' : data.splitProgress[splitName].trend === 'Declining' ? '#fef2f2' : '#f8fafc'}; border-radius: 6px; border-left: 3px solid ${data.splitProgress[splitName].trend === 'Improving' ? '#10b981' : data.splitProgress[splitName].trend === 'Declining' ? '#ef4444' : '#6b7280'};">
+                                <div style="margin-top: 15px; padding: 10px; background: ${
+                                  data.splitProgress[splitName].isBaseline ? '#f8fafc' : 
+                                  data.splitProgress[splitName].trend === 'Higher' ? '#f0fdf4' : 
+                                  data.splitProgress[splitName].trend === 'Lower' ? '#fef2f2' : '#f8fafc'
+                                }; border-radius: 6px; border-left: 3px solid ${
+                                  data.splitProgress[splitName].isBaseline ? '#6b7280' :
+                                  data.splitProgress[splitName].trend === 'Higher' ? '#10b981' : 
+                                  data.splitProgress[splitName].trend === 'Lower' ? '#ef4444' : '#6b7280'
+                                };">
                                     <div style="font-size: 0.8rem; color: #6b7280;">Recent Trend</div>
-                                    <div style="font-weight: 600; color: ${data.splitProgress[splitName].trend === 'Improving' ? '#10b981' : data.splitProgress[splitName].trend === 'Declining' ? '#ef4444' : '#6b7280'};">
-                                        ${data.splitProgress[splitName].trend} (${data.splitProgress[splitName].progressPercent > 0 ? '+' : ''}${data.splitProgress[splitName].progressPercent}%)
+                                    <div style="font-weight: 600; color: ${
+                                      data.splitProgress[splitName].isBaseline ? '#6b7280' :
+                                      data.splitProgress[splitName].trend === 'Higher' ? '#10b981' : 
+                                      data.splitProgress[splitName].trend === 'Lower' ? '#ef4444' : '#6b7280'
+                                    };">
+                                        ${data.splitProgress[splitName].isBaseline ? 
+                                          data.splitProgress[splitName].trend : 
+                                          `${data.splitProgress[splitName].trend} (${data.splitProgress[splitName].progressPercent > 0 ? '+' : ''}${data.splitProgress[splitName].progressPercent}%)`
+                                        }
                                     </div>
                                 </div>
                             ` : ''}
@@ -1405,11 +1514,24 @@ const Profile = () => {
                     <div style="background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 20px; border-radius: 8px;">
                         <h4 style="color: #0369a1; margin-top: 0;">📊 Split Progress Insights</h4>
                         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
-                            ${Object.entries(data.splitProgress).map(([splitName, progress]) => `
+                            ${Object.entries(data.splitProgress)
+                              .sort(([a], [b]) => {
+                                // Sort to ensure consistent ordering: Thursday first, then Saturday
+                                const dayOrder = ['Thursday', 'Saturday', 'Monday', 'Tuesday', 'Wednesday', 'Friday', 'Sunday'];
+                                const getDayFromSplit = (splitName) => {
+                                  const day = splitName.split(' ')[0];
+                                  return dayOrder.indexOf(day);
+                                };
+                                return getDayFromSplit(a) - getDayFromSplit(b);
+                              })
+                              .map(([splitName, progress]) => `
                                 <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e0f2fe;">
                                     <div style="font-weight: 600; color: #1f2937; margin-bottom: 8px;">${splitName}</div>
                                     <div style="font-size: 0.9rem; color: #6b7280; margin-bottom: 10px;">
-                                        Recent trend: <span style="color: ${progress.trend === 'Improving' ? '#10b981' : progress.trend === 'Declining' ? '#ef4444' : '#6b7280'}; font-weight: 600;">${progress.trend}</span>
+                                        ${progress.isBaseline ? 
+                                          `<span style="color: #6b7280; font-weight: 600;">Baseline for comparison</span>` :
+                                          `Compared to baseline: <span style="color: ${progress.trend === 'Higher' ? '#10b981' : progress.trend === 'Lower' ? '#ef4444' : '#6b7280'}; font-weight: 600;">${progress.trend} (${progress.progressPercent > 0 ? '+' : ''}${progress.progressPercent}%)</span>`
+                                        }
                                     </div>
                                     <div style="font-size: 0.8rem;">
                                         <div style="color: #6b7280; margin-bottom: 5px;">Last 4 sessions:</div>
@@ -1443,6 +1565,16 @@ const Profile = () => {
                                     ${data.cardioAnalytics.beforeWorkout.slow + data.cardioAnalytics.beforeWorkout.fast} sessions • ${data.cardioAnalytics.beforeWorkout.totalDuration} min
                                 </div>
                             </div>
+                            
+                            <!-- Cardio Dates -->
+                            ${data.cardioAnalytics.beforeWorkout.dates && data.cardioAnalytics.beforeWorkout.dates.length > 0 ? `
+                                <div style="margin-bottom: 15px; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                    <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 5px; font-weight: 600;">📅 Cardio Sessions:</div>
+                                    <div style="font-size: 0.85rem; color: #374151;">
+                                        ${data.cardioAnalytics.beforeWorkout.dates.sort((a, b) => new Date(b) - new Date(a)).join(' • ')}
+                                    </div>
+                                </div>
+                            ` : ''}
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
                                 ${data.cardioAnalytics.beforeWorkout.slow > 0 ? `
                                     <div style="text-align: center; padding: 15px; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
@@ -1477,6 +1609,16 @@ const Profile = () => {
                                     ${data.cardioAnalytics.afterWorkout.slow + data.cardioAnalytics.afterWorkout.fast} sessions • ${data.cardioAnalytics.afterWorkout.totalDuration} min
                                 </div>
                             </div>
+                            
+                            <!-- Cardio Dates -->
+                            ${data.cardioAnalytics.afterWorkout.dates && data.cardioAnalytics.afterWorkout.dates.length > 0 ? `
+                                <div style="margin-bottom: 15px; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                    <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 5px; font-weight: 600;">📅 Cardio Sessions:</div>
+                                    <div style="font-size: 0.85rem; color: #374151;">
+                                        ${data.cardioAnalytics.afterWorkout.dates.sort((a, b) => new Date(b) - new Date(a)).join(' • ')}
+                                    </div>
+                                </div>
+                            ` : ''}
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
                                 ${data.cardioAnalytics.afterWorkout.slow > 0 ? `
                                     <div style="text-align: center; padding: 15px; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
