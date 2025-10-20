@@ -173,6 +173,20 @@ function workoutReducer(state, action) {
     
     case 'UPDATE_SET':
       if (!state.currentWorkout) return state
+      const sanitizedUpdates = (() => {
+        const u = { ...action.payload.updates }
+        if (Object.prototype.hasOwnProperty.call(u, 'difficulty')) {
+          let d = u.difficulty
+          if (typeof d === 'number') {
+            if (d !== 0) {
+              d = Math.floor(d)
+              d = Math.max(1, Math.min(10, d))
+              u.difficulty = d
+            }
+          }
+        }
+        return u
+      })()
       return {
         ...state,
         currentWorkout: {
@@ -183,7 +197,7 @@ function workoutReducer(state, action) {
                   ...exercise,
                   sets: exercise.sets.map(set =>
                     set.id === action.payload.setId
-                      ? { ...set, ...action.payload.updates }
+                      ? { ...set, ...sanitizedUpdates }
                       : set
                   )
                 }
