@@ -329,7 +329,14 @@ const SetRow = ({ set, setIndex, exerciseType, exerciseName, onUpdate, onDelete 
               min="1"
               max="10"
               value={set.difficulty || ''}
-              onChange={(e) => onUpdate({ difficulty: parseInt(e.target.value) || 0 })}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') { onUpdate({ difficulty: 0 }); return; }
+                let v = parseInt(raw, 10);
+                if (isNaN(v)) v = 0;
+                v = Math.max(1, Math.min(10, v));
+                onUpdate({ difficulty: v });
+              }}
               className="fitness-input text-sm"
             />
           </div>
