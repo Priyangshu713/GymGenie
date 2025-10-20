@@ -522,6 +522,7 @@ const Profile = () => {
           totalVolume: filteredWorkouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.weight || 0) * (set.reps || 0), 0), 0), 0),
           avgDifficulty: filteredWorkouts.length > 0 ? filteredWorkouts.reduce((sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.reduce((ss, set) => ss + (set.difficulty || 0), 0) / Math.max(e.sets.length, 1), 0) / Math.max(w.exercises.length, 1), 0) / filteredWorkouts.length : 0
         },
+        summaryByMuscleGroup: {},
         muscleGroupDistribution: {},
         exerciseTypeDistribution: { strength: 0, cardio: 0 },
         difficultyDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 },
@@ -657,6 +658,13 @@ const Profile = () => {
               sum + (set.weight || 0) * (set.reps || 0), 0)
             reportData.volumeByMuscleGroup[exercise.muscleGroup] = 
               (reportData.volumeByMuscleGroup[exercise.muscleGroup] || 0) + muscleVolume
+
+            if (!reportData.summaryByMuscleGroup[exercise.muscleGroup]) {
+              reportData.summaryByMuscleGroup[exercise.muscleGroup] = { exercises: 0, sets: 0, volume: 0 }
+            }
+            reportData.summaryByMuscleGroup[exercise.muscleGroup].exercises += 1
+            reportData.summaryByMuscleGroup[exercise.muscleGroup].sets += exercise.sets.length
+            reportData.summaryByMuscleGroup[exercise.muscleGroup].volume += muscleVolume
           }
 
           // Top exercises
@@ -1248,6 +1256,25 @@ const Profile = () => {
                         <div class="metric-value">${data.summary.avgDifficulty.toFixed(1)}/10</div>
                         <div class="metric-label">Avg Difficulty</div>
                     </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🧩 Muscle Group Summary</h2>
+                <div class="grid">
+                    ${(() => {
+                        const entries = Object.entries(data.summaryByMuscleGroup || {})
+                          .sort(([a], [b]) => a.localeCompare(b));
+                        if (entries.length === 0) return '<div class="card">No muscle group data available for this period.</div>';
+                        return entries.map(([group, s]) => `
+                            <div class="card metric" style="border-left: 4px solid ${muscleGroupColors[group] || '#6b7280'};">
+                                <div style="text-transform: capitalize; font-weight: 600; color: #111827; margin-bottom: 6px;">${group}</div>
+                                <div class="metric-value" style="font-size: 1.6rem;">${s.sets}</div>
+                                <div class="metric-label">Sets</div>
+                                <div style="margin-top: 6px; color: #6b7280; font-size: 0.85rem;">${s.exercises} exercises • ${Math.round(s.volume)} kg</div>
+                            </div>
+                        `).join('')
+                    })()}
                 </div>
             </div>
 
