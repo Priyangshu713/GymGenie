@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <!-- Modern gradient background -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Icon gradient -->
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Accent gradient -->
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="url(#bgGradient)" stroke="#334155" stroke-width="1"/>
+  
+  <!-- Modern "G" lettermark -->
+  <g>
+    <!-- Main G shape -->
+    <path d="M35 30 C25 30, 20 35, 20 45 L20 55 C20 65, 25 70, 35 70 L55 70 C65 70, 70 65, 70 55 L70 50 L55 50 L55 58 L62 58 L62 55 C62 61, 59 62, 55 62 L35 62 C31 62, 28 59, 28 55 L28 45 C28 41, 31 38, 35 38 L55 38 C59 38, 62 41, 62 45 L70 45 C70 35, 65 30, 55 30 Z" 
+          fill="url(#iconGradient)" 
+          stroke="none"/>
+    
+    <!-- Accent dot for modern touch -->
+    <circle cx="75" cy="35" r="3" fill="url(#accentGradient)"/>
+    
+    <!-- Subtle activity indicator -->
+    <rect x="72" y="65" width="12" height="2" rx="1" fill="url(#accentGradient)" opacity="0.8"/>
+    <rect x="74" y="68" width="8" height="2" rx="1" fill="url(#accentGradient)" opacity="0.6"/>
+    <rect x="76" y="71" width="4" height="2" rx="1" fill="url(#accentGradient)" opacity="0.4"/>
+  </g>
+</svg>
