@@ -3,6 +3,7 @@ import { useWorkout } from '../context/WorkoutContext'
 import AppleDropdown from '../components/AppleDropdown'
 import AppleCalendar from '../components/AppleCalendar'
 import AISmartTip from '../components/AISmartTip'
+import { exerciseDatabase } from '../data/exercises.js'
 import {
   analyzeMuscleBalance,
   analyzeRecovery,
@@ -54,6 +55,7 @@ const Analytics = () => {
     progressOverload: null
   })
   const [insightsLoading, setInsightsLoading] = useState(false)
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState(null)
 
   const handleTimeRangeChange = (value) => {
     if (value === 'custom') {
@@ -688,62 +690,147 @@ const Analytics = () => {
         {/* Progressive Overload Tracker */}
         {Object.keys(progressiveOverloadData).length > 0 && (
           <div className="fitness-card">
-            <h2 className="text-white font-semibold mb-4 flex items-center">
-              <TrendingUp size={20} className="mr-2 text-green-400" />
-              Progressive Overload Tracker
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-white font-semibold flex items-center">
+                <TrendingUp size={20} className="mr-2 text-green-400" />
+                Progressive Overload Tracker
+              </h2>
+              {selectedMuscleGroup && (
+                <button
+                  onClick={() => setSelectedMuscleGroup(null)}
+                  className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
+                >
+                  &larr; Back to Muscle Groups
+                </button>
+              )}
+            </div>
 
-            <div className="space-y-3">
-              {Object.entries(progressiveOverloadData)
-                .filter(([_, sessions]) => sessions.length >= 2)
-                .sort(([_, a], [__, b]) => b.length - a.length)
-                .slice(0, 5)
-                .map(([exerciseName, sessions]) => {
+            {!selectedMuscleGroup ? (
+              <div className="space-y-3">
+                {Object.keys(exerciseDatabase).map((muscleGroup) => {
+                  const exercises = exerciseDatabase[muscleGroup];
+                  const trackedExercises = exercises.filter(
+                    (e) => progressiveOverloadData[e] && progressiveOverloadData[e].length >= 2
+                  );
 
-                  const firstSession = sessions[0]
-                  const lastSession = sessions[sessions.length - 1]
-                  const weightIncrease = lastSession.weight - firstSession.weight
-                  const volumeIncrease = lastSession.volume - firstSession.volume
-                  const isProgressing = weightIncrease > 0 || volumeIncrease > 0
+                  if (trackedExercises.length === 0) {
+                    return null;
+                  }
+
+                  let progressingCount = 0;
+                  let decreasingCount = 0;
+                  let plateauCount = 0;
+
+                  trackedExercises.forEach((exerciseName) => {
+                    const sessions = progressiveOverloadData[exerciseName];
+                    const firstSession = sessions[0];
+                    const lastSession = sessions[sessions.length - 1];
+                    const weightIncrease = lastSession.weight - firstSession.weight;
+                    const volumeIncrease = lastSession.volume - firstSession.volume;
+
+                    if (weightIncrease > 0 || volumeIncrease > 0) {
+                      progressingCount++;
+                    } else if (weightIncrease < 0 || volumeIncrease < 0) {
+                      decreasingCount++;
+                    } else {
+                      plateauCount++;
+                    }
+                  });
+
+                  let overallStatus = { text: '➡️ Plateau', className: 'bg-gray-700 text-gray-400' };
+                  if (progressingCount > 0 && progressingCount >= decreasingCount) {
+                    overallStatus = { text: '📈 Progressing', className: 'bg-green-900/30 text-green-400' };
+                  } else if (decreasingCount > 0) {
+                    overallStatus = { text: '📉 Decreasing', className: 'bg-red-900/30 text-red-400' };
+                  }
+
 
                   return (
-                    <div key={exerciseName} className="bg-gray-800 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-white font-medium text-sm">{exerciseName}</p>
-                        <span className={`text-xs px-2 py-1 rounded-full ${isProgressing ? 'bg-green-900/30 text-green-400' : 'bg-gray-700 text-gray-400'
-                          }`}>
-                          {isProgressing ? '📈 Progressing' : '➡️ Plateau'}
+                    <div
+                      key={muscleGroup}
+                      onClick={() => setSelectedMuscleGroup(muscleGroup)}
+                      className="bg-gray-800 rounded-xl p-4 cursor-pointer hover:bg-gray-700 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-white font-medium capitalize">{muscleGroup}</p>
+                        <span className={`text-xs px-2 py-1 rounded-full ${overallStatus.className}`}>
+                          {overallStatus.text}
                         </span>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-3 text-xs">
-                        <div>
-                          <p className="text-gray-400">Weight</p>
-                          <p className="text-white font-semibold">
-                            {firstSession.weight}kg → {lastSession.weight}kg
-                            {weightIncrease > 0 && (
-                              <span className="text-green-400 ml-1">+{weightIncrease}kg</span>
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400">Volume</p>
-                          <p className="text-white font-semibold">
-                            {Math.round(firstSession.volume)}kg → {Math.round(lastSession.volume)}kg
-                            {volumeIncrease > 0 && (
-                              <span className="text-green-400 ml-1">+{Math.round(volumeIncrease)}kg</span>
-                            )}
-                          </p>
-                        </div>
+                      <div className="mt-2 text-xs text-gray-400">
+                        {progressingCount > 0 && <span className="text-green-400">{progressingCount} progressing</span>}
+                        {decreasingCount > 0 && <span className="text-red-400 ml-2">{decreasingCount} decreasing</span>}
+                        {plateauCount > 0 && <span className="text-gray-500 ml-2">{plateauCount} plateau</span>}
                       </div>
-
-                      <p className="text-xs text-gray-500 mt-2">
-                        {sessions.length} sessions tracked
-                      </p>
                     </div>
-                  )
-                }).filter(Boolean)}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {Object.entries(progressiveOverloadData)
+                  .filter(([exerciseName, sessions]) => {
+                    const exerciseMuscleGroup = Object.keys(exerciseDatabase).find(group => exerciseDatabase[group].includes(exerciseName));
+                    return exerciseMuscleGroup === selectedMuscleGroup && sessions.length >= 2;
+                  })
+                  .sort(([_, a], [__, b]) => b.length - a.length)
+                  .map(([exerciseName, sessions]) => {
+                    const firstSession = sessions[0];
+                    const lastSession = sessions[sessions.length - 1];
+                    const weightIncrease = lastSession.weight - firstSession.weight;
+                    const volumeIncrease = lastSession.volume - firstSession.volume;
+                    const isProgressing = weightIncrease > 0 || volumeIncrease > 0;
+                    const isDecreasing = weightIncrease < 0 || volumeIncrease < 0;
+
+                    let status = { text: '➡️ Plateau', className: 'bg-gray-700 text-gray-400' };
+                    if (isProgressing) {
+                      status = { text: '📈 Progressing', className: 'bg-green-900/30 text-green-400' };
+                    } else if (isDecreasing) {
+                        status = { text: '📉 Decreasing', className: 'bg-red-900/30 text-red-400' };
+                    }
+
+                    return (
+                      <div key={exerciseName} className="bg-gray-800 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-white font-medium text-sm">{exerciseName}</p>
+                          <span className={`text-xs px-2 py-1 rounded-full ${status.className}`}>
+                            {status.text}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <p className="text-gray-400">Weight</p>
+                            <p className="text-white font-semibold">
+                              {firstSession.weight}kg → {lastSession.weight}kg
+                              {weightIncrease !== 0 && (
+                                <span className={weightIncrease > 0 ? "text-green-400 ml-1" : "text-red-400 ml-1"}>
+                                  {weightIncrease > 0 ? `+${weightIncrease}` : weightIncrease}kg
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400">Volume</p>
+                            <p className="text-white font-semibold">
+                              {Math.round(firstSession.volume)}kg → {Math.round(lastSession.volume)}kg
+                              {volumeIncrease !== 0 && (
+                                <span className={volumeIncrease > 0 ? "text-green-400 ml-1" : "text-red-400 ml-1"}>
+                                  {volumeIncrease > 0 ? `+${Math.round(volumeIncrease)}` : Math.round(volumeIncrease)}kg
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-gray-500 mt-2">
+                          {sessions.length} sessions tracked
+                        </p>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
 
             {Object.entries(progressiveOverloadData).filter(([_, sessions]) => sessions.length >= 2).length === 0 && (
               <div className="text-center py-8">
