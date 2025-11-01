@@ -294,6 +294,137 @@ const parseInsightsResponse = (aiResponse) => {
   }
 }
 
+export const generateProfileInsights = async (measurements) => {
+  try {
+    if (!measurements) {
+      throw new Error("No measurements data available for analysis");
+    }
+
+    const ai = initializeAI();
+    if (!ai) {
+      throw new Error("AI not initialized");
+    }
+
+    const prompt = createProfileAnalysisPrompt(measurements);
+
+    const contents = [
+      {
+        role: "user",
+        parts: [
+          {
+            text: prompt,
+          },
+        ],
+      },
+    ];
+
+    const response = await ai.models.generateContentStream({
+      model: "gemini-flash-lite-latest",
+      contents,
+    });
+
+    let fullText = "";
+    for await (const chunk of response) {
+      if (chunk.text) {
+        fullText += chunk.text;
+      }
+    }
+
+    return parseProfileInsightsResponse(fullText);
+  } catch (error) {
+    console.error("Error generating profile insights:", error);
+    return {
+      success: false,
+      insights: {
+        bmi: {
+          value: "N/A",
+          interpretation: "Could not calculate BMI.",
+        },
+        tdee: {
+          value: "N/A",
+          interpretation: "Could not calculate TDEE.",
+        },
+        goalAdvice: {
+          title: "Error",
+          advice: "Could not generate advice.",
+        },
+        healthTips: [],
+      },
+    };
+  }
+};
+
+const parseProfileInsightsResponse = (aiResponse) => {
+  try {
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return { success: true, insights: JSON.parse(jsonMatch[0]) };
+    }
+    return { success: false, insights: null }; // Or some default error structure
+  } catch (error) {
+    console.error("Error parsing AI profile insights response:", error);
+    return { success: false, insights: null }; // Or some default error structure
+  }
+};
+
+const createProfileAnalysisPrompt = (measurements) => {
+  const { height, weight, age, sex, activityLevel, goal } = measurements;
+
+  return `
+    As a professional fitness and nutrition coach, analyze the following user profile data. Provide actionable insights and recommendations in a JSON format. The information must be very concise and bite-sized.
+
+    USER PROFILE:
+    - Height: ${height || "Not provided"} cm
+    - Weight: ${weight || "Not provided"} kg
+    - Age: ${age || "Not provided"} years
+    - Sex: ${sex || "Not provided"}
+    - Activity Level: ${activityLevel || "Not provided"}
+    - Goal: ${goal || "Not provided"}
+
+    Please provide a comprehensive analysis in the following JSON format, with each string value being a short, single sentence:
+    {
+      "bmi": {
+        "value": "string",
+        "interpretation": "string (e.g., 'This is within the healthy range.')"
+      },
+      "tdee": {
+        "value": "string",
+        "interpretation": "string (e.g., 'Calories to maintain your current weight.')"
+      },
+      "healthyWeight": {
+        "range": "string (e.g., '60-75 kg')",
+        "interpretation": "string (e.g., 'A healthy weight range for your height.')"
+      },
+      "macroSplit": {
+        "protein": "string (e.g., '150g')",
+        "carbs": "string (e.g., '200g')",
+        "fat": "string (e.g., '60g')",
+        "interpretation": "string (e.g., 'A sample macro split for your goal.')"
+      },
+      "workoutFrequency": {
+        "recommendation": "string (e.g., '3-5 days/week')",
+        "interpretation": "string (e.g., 'Recommended workout frequency for your goal.')"
+      },
+      "goalAdvice": {
+        "title": "string (e.g., 'For Your Goal')",
+        "advice": "string (a short, actionable tip)"
+      },
+      "healthTips": [
+        {
+          "title": "string (e.g., 'Hydration Tip')",
+          "tip": "string (a short, single-sentence tip)"
+        },
+        {
+          "title": "string (e.g., 'Sleep Tip')",
+          "tip": "string (a short, single-sentence tip)"
+        }
+      ]
+    }
+
+    Keep the tone encouraging and informative. All string values must be very short and easy to read at a glance.
+  `;
+};
+
 // AI Split Analysis Function
 export const analyzeSplit = async (splitData, userGoals = 'muscle_growth') => {
   try {
