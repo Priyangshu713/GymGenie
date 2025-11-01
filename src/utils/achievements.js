@@ -145,7 +145,7 @@ export const ACHIEVEMENTS = {
   HYPERTROPHY_SPECIALIST: {
     id: 'hypertrophy_specialist',
     title: 'Hypertrophy Specialist',
-    description: 'Complete 200 sets in the 8-15 rep range (muscle growth zone)',
+    description: 'Complete 500 sets in the 6-12 rep range (optimal hypertrophy)',
     icon: '🧬',
     category: ACHIEVEMENT_CATEGORIES.STRENGTH,
     rarity: 'legendary',
@@ -154,11 +154,11 @@ export const ACHIEVEMENTS = {
       const hypertrophySets = workouts.reduce((count, workout) =>
         count + workout.exercises.reduce((exerciseCount, exercise) =>
           exerciseCount + exercise.sets.filter(set => 
-            set.reps >= 8 && set.reps <= 15
+            set.reps >= 6 && set.reps <= 12
           ).length, 0
         ), 0
       )
-      return hypertrophySets >= 200
+      return hypertrophySets >= 500
     }
   },
   
@@ -2706,15 +2706,25 @@ export const ACHIEVEMENTS = {
 }
 
 // Calculate user's achievements
-export const calculateAchievements = (workouts) => {
+export const calculateAchievements = (workouts, previouslyUnlocked = []) => {
   const unlockedAchievements = []
   const lockedAchievements = []
   
+  // Create a map of previously unlocked achievements by ID
+  const previouslyUnlockedMap = {}
+  previouslyUnlocked.forEach(achievement => {
+    if (achievement.id && achievement.unlockedAt) {
+      previouslyUnlockedMap[achievement.id] = achievement.unlockedAt
+    }
+  })
+  
   Object.values(ACHIEVEMENTS).forEach(achievement => {
     if (achievement.condition(workouts)) {
+      // Use the original unlock date if it exists, otherwise set it now
+      const unlockedAt = previouslyUnlockedMap[achievement.id] || new Date().toISOString()
       unlockedAchievements.push({
         ...achievement,
-        unlockedAt: new Date().toISOString()
+        unlockedAt
       })
     } else {
       lockedAchievements.push(achievement)
@@ -2940,11 +2950,11 @@ export const getAchievementProgress = (achievement, workouts) => {
       const hypertrophySpecialistSets = workouts.reduce((count, workout) =>
         count + workout.exercises.reduce((exerciseCount, exercise) =>
           exerciseCount + exercise.sets.filter(set => 
-            set.reps >= 8 && set.reps <= 15
+            set.reps >= 6 && set.reps <= 12
           ).length, 0
         ), 0
       )
-      return { current: hypertrophySpecialistSets, target: 200 }
+      return { current: hypertrophySpecialistSets, target: 500 }
     
     case 'volume_titan':
       const maxSetsInWorkout = Math.max(...workouts.map(workout => 
