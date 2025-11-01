@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
 import { 
   Trophy, 
@@ -24,13 +24,20 @@ import {
 } from '../utils/achievements'
 
 const Achievements = () => {
-  const { workouts } = useWorkout()
+  const { workouts, achievements, updateAchievements } = useWorkout()
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [showUnlockedOnly, setShowUnlockedOnly] = useState(false)
 
   const { unlockedAchievements, lockedAchievements } = useMemo(() => 
-    calculateAchievements(workouts), [workouts]
+    calculateAchievements(workouts, achievements), [workouts, achievements]
   )
+
+  // Update achievements in context whenever they change
+  useEffect(() => {
+    if (JSON.stringify(unlockedAchievements) !== JSON.stringify(achievements)) {
+      updateAchievements(unlockedAchievements)
+    }
+  }, [unlockedAchievements, achievements, updateAchievements])
 
   const totalPoints = calculateTotalPoints(unlockedAchievements)
   const completionPercentage = Math.round((unlockedAchievements.length / Object.keys(ACHIEVEMENTS).length) * 100)
@@ -161,7 +168,7 @@ const Achievements = () => {
         {/* Unlocked timestamp */}
         {isUnlocked && achievement.unlockedAt && (
           <div className="mt-3 text-xs text-gray-500 text-center">
-            Unlocked on {new Date(achievement.unlockedAt).toLocaleDateString()}
+            Unlocked on {new Date(achievement.unlockedAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
           </div>
         )}
       </div>
