@@ -1,6 +1,7 @@
 {
   "name": "gymgenie",
   "version": "1.0.0",
+  "type": "module",
   "description": "Mobile-focused gym and bodybuilding activity tracker with AI insights",
   "main": "index.js",
   "scripts": {
