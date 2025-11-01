@@ -43,7 +43,7 @@ import {
 } from 'date-fns'
 
 const Analytics = () => {
-  const { workouts, stats } = useWorkout()
+  const { workouts, stats, achievements } = useWorkout()
   const [timeRange, setTimeRange] = useState('30') // days
   const [selectedMetric, setSelectedMetric] = useState('workouts')
   const [customDate, setCustomDate] = useState(null)
@@ -959,7 +959,7 @@ const Analytics = () => {
           </div>
 
           {(() => {
-            const { unlockedAchievements } = calculateAchievements(workouts)
+            const { unlockedAchievements } = calculateAchievements(workouts, achievements)
             const totalPoints = calculateTotalPoints(unlockedAchievements)
             const currentRank = getUserRank(totalPoints)
             const rankProgress = getRankProgress(totalPoints)
