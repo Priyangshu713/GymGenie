@@ -650,7 +650,7 @@ export const setGeminiApiKey = (apiKey) => {
 }
 
 export const getGeminiApiKey = () => {
-  return localStorage.getItem('gemini-api-key') || import.meta.env.VITE_GEMINI_API_KEY
+  return localStorage.getItem('gemini-api-key') || ''
 }
 
 // Export initializeAI for external use
