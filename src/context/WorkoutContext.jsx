@@ -112,6 +112,7 @@ const initialState = {
   currentWorkout: null,
   exercises: EXERCISE_DATABASE,
   goals: [],
+  achievements: [],
   stats: {
     totalWorkouts: 0,
     totalExercises: 0,
@@ -248,6 +249,12 @@ function workoutReducer(state, action) {
         currentWorkout: null
       }
     
+    case 'UPDATE_ACHIEVEMENTS':
+      return {
+        ...state,
+        achievements: action.payload
+      }
+    
     default:
       return state
   }
@@ -300,6 +307,7 @@ export function WorkoutProvider({ children }) {
             workouts: migratedWorkouts,
             currentWorkout: parsedData.currentWorkout || null,
             goals: parsedData.goals || [],
+            achievements: parsedData.achievements || [],
             stats: parsedData.stats || initialState.stats
           }})
         }
@@ -319,6 +327,7 @@ export function WorkoutProvider({ children }) {
           workouts: state.workouts,
           currentWorkout: state.currentWorkout,
           goals: state.goals,
+          achievements: state.achievements,
           stats: state.stats,
           lastSaved: new Date().toISOString()
         }
@@ -329,7 +338,7 @@ export function WorkoutProvider({ children }) {
     }, 500) // Debounce saves by 500ms
 
     return () => clearTimeout(timeoutId)
-  }, [state.workouts, state.currentWorkout, state.goals, state.stats])
+  }, [state.workouts, state.currentWorkout, state.goals, state.achievements, state.stats])
 
   const value = {
     ...state,
@@ -343,7 +352,8 @@ export function WorkoutProvider({ children }) {
       dispatch({ type: 'DELETE_SET', payload: { exerciseId, setId } }),
     saveWorkout: () => dispatch({ type: 'SAVE_WORKOUT' }),
     deleteWorkout: (workoutId) => dispatch({ type: 'DELETE_WORKOUT', payload: workoutId }),
-    cancelWorkout: () => dispatch({ type: 'CANCEL_WORKOUT' })
+    cancelWorkout: () => dispatch({ type: 'CANCEL_WORKOUT' }),
+    updateAchievements: (achievements) => dispatch({ type: 'UPDATE_ACHIEVEMENTS', payload: achievements })
   }
 
   return (
