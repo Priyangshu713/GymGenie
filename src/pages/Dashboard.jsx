@@ -4,7 +4,7 @@ import { useWorkout } from '../context/WorkoutContext'
 import ActivityRings from '../components/ActivityRings'
 import DateRangeSelector from '../components/DateRangeSelector'
 import AISmartTip from '../components/AISmartTip'
-import { getQuickTip, shouldRestToday, getMuscleBalanceTip } from '../services/contextualAI'
+import { getQuickTip, shouldRestToday, getMuscleBalanceTip, getRestDayTip } from '../services/contextualAI'
 import {
   Plus,
   Calendar,
@@ -31,6 +31,7 @@ const Dashboard = () => {
   const [aiTip, setAiTip] = useState(null)
   const [restSuggestion, setRestSuggestion] = useState(null)
   const [muscleTip, setMuscleTip] = useState(null)
+  const [restDayTip, setRestDayTip] = useState(null)
   const [tipsLoading, setTipsLoading] = useState(false)
   const [dashboardInsights, setDashboardInsights] = useState([])
 
@@ -129,16 +130,59 @@ const Dashboard = () => {
           })
         })
 
+        // Check if today is a rest day
+        const checkIfRestDay = () => {
+          try {
+            const savedSplit = localStorage.getItem('gymgenie-workout-split')
+            if (!savedSplit) return false
+            
+            const workoutSplit = JSON.parse(savedSplit)
+            if (!workoutSplit || workoutSplit.type === 'none') return false
+            
+            const today = new Date().getDay()
+            const dayOfWeek = today === 0 ? 7 : today
+            
+            const schedule = workoutSplit.customSplit?.schedule
+            if (!schedule) return false
+            
+            const todaysPlannedWorkout = schedule[dayOfWeek]
+            return todaysPlannedWorkout && (todaysPlannedWorkout.name === 'Rest' || todaysPlannedWorkout.muscles.length === 0)
+          } catch (error) {
+            return false
+          }
+        }
+
+        const isRestDay = checkIfRestDay()
+
+        // Prepare rest day tip data if needed
+        let restDayTipPromise = null
+        if (isRestDay) {
+          const recentDays = workouts.filter(w => {
+            const daysDiff = Math.floor((new Date() - new Date(w.date)) / (1000 * 60 * 60 * 24))
+            return daysDiff <= 7
+          }).length
+
+          const lastMuscles = Object.keys(muscleGroups)
+
+          restDayTipPromise = getRestDayTip({
+            recentDays,
+            lastMuscles,
+            avgIntensity
+          })
+        }
+
         // Load tips in parallel for better performance
-        const [tip, rest, muscle] = await Promise.all([
+        const [tip, rest, muscle, restTip] = await Promise.all([
           getQuickTip({ recentWorkouts, stats: { thisWeek: thisWeeksWorkouts.length } }),
           shouldRestToday(workouts.slice(0, 7), Object.keys(muscleGroups)),
-          Object.keys(muscleGroups).length > 0 ? getMuscleBalanceTip(muscleGroups) : null
+          Object.keys(muscleGroups).length > 0 ? getMuscleBalanceTip(muscleGroups) : null,
+          restDayTipPromise
         ])
 
         setAiTip(tip)
         setRestSuggestion(rest)
         setMuscleTip(muscle)
+        setRestDayTip(restTip)
       } catch (error) {
         console.error('AI tips error:', error)
       } finally {
@@ -161,14 +205,50 @@ const Dashboard = () => {
 
     const insights = []
 
+    // Check if today is a rest day according to user's workout split
+    const checkIfRestDay = () => {
+      try {
+        const savedSplit = localStorage.getItem('gymgenie-workout-split')
+        if (!savedSplit) return false
+        
+        const workoutSplit = JSON.parse(savedSplit)
+        if (!workoutSplit || workoutSplit.type === 'none') return false
+        
+        const today = new Date().getDay() // 0 = Sunday, 1 = Monday, etc.
+        const dayOfWeek = today === 0 ? 7 : today // Convert Sunday to 7
+        
+        const schedule = workoutSplit.customSplit?.schedule
+        if (!schedule) return false
+        
+        const todaysPlannedWorkout = schedule[dayOfWeek]
+        return todaysPlannedWorkout && (todaysPlannedWorkout.name === 'Rest' || todaysPlannedWorkout.muscles.length === 0)
+      } catch (error) {
+        console.error('Error checking rest day:', error)
+        return false
+      }
+    }
+
+    const isRestDay = checkIfRestDay()
+
     // 1) Activity Ring Analysis
     if (volumeProgress < 50 && todaysWorkouts.length === 0) {
-      insights.push({
-        id: 'low-volume-today',
-        type: 'motivation',
-        text: `Volume at ${Math.round(volumeProgress)}% today. Start a workout to complete your daily goal!`
-      })
-    } else if (volumeProgress >= 80 && volumeProgress < 100) {
+      if (isRestDay) {
+        // Use AI-generated rest day tip if available, otherwise show fallback
+        const restMessage = restDayTip || '🛌 Rest day! Recovery is when your muscles grow. Focus on sleep, nutrition, and hydration.'
+        
+        insights.push({
+          id: 'rest-day',
+          type: 'rest',
+          text: restMessage
+        })
+      } else {
+        insights.push({
+          id: 'low-volume-today',
+          type: 'motivation',
+          text: `Volume at ${Math.round(volumeProgress)}% today. Start a workout to complete your daily goal!`
+        })
+      }
+    } else if (volumeProgress >= 80 && volumeProgress < 100 && !isRestDay) {
       insights.push({
         id: 'near-goal',
         type: 'motivation',
@@ -315,7 +395,7 @@ const Dashboard = () => {
 
     // Keep only most relevant (max 2 at a time)
     setDashboardInsights(insights.slice(0, 2))
-  }, [workouts, thisWeeksWorkouts, todaysWorkouts, volumeProgress, frequencyProgress, intensityProgress, avgIntensity, timeRange])
+  }, [workouts, thisWeeksWorkouts, todaysWorkouts, volumeProgress, frequencyProgress, intensityProgress, avgIntensity, timeRange, restDayTip])
 
   return (
     <div className="pb-36 bg-black min-h-screen">
