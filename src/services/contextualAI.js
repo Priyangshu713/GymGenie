@@ -219,4 +219,38 @@ Tip:`
   }
 }
 
+// Generate personalized rest day recovery tip
+export const getRestDayTip = async (workoutHistory) => {
+  try {
+    const ai = initializeAI()
+    if (!ai) return null
+
+    const recentWorkoutCount = workoutHistory?.recentDays || 0
+    const lastMuscles = workoutHistory?.lastMuscles || []
+    const avgIntensity = workoutHistory?.avgIntensity || 0
+
+    const prompt = `User is on a scheduled rest day. Recent stats:
+- Last ${recentWorkoutCount} days: workouts done
+- Recent muscles trained: ${lastMuscles.join(', ') || 'various'}
+- Average intensity: ${avgIntensity.toFixed(1)}/10
+
+Generate ONE personalized recovery tip focusing on rest, nutrition, sleep, or active recovery (max 20 words). Include a relevant emoji:
+
+Tip:`
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-flash-lite-latest',
+      contents: [{
+        role: 'user',
+        parts: [{ text: prompt }]
+      }]
+    })
+
+    return response.text?.trim() || null
+  } catch (error) {
+    console.error('Rest day tip error:', error)
+    return null
+  }
+}
+
 export { initializeAI }
