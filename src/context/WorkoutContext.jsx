@@ -272,10 +272,13 @@ function calculateStats(workouts) {
           cardioTime: acc.cardioTime
         }
       } else {
+        // For cardio, sum up duration from all sets
+        const totalCardioTime = exercise.sets.reduce((sum, set) => 
+          sum + (set.duration || 0), 0)
         return {
           exercises: acc.exercises + 1,
           weight: acc.weight,
-          cardioTime: acc.cardioTime + (exercise.duration || 0)
+          cardioTime: acc.cardioTime + totalCardioTime
         }
       }
     }, { exercises: 0, weight: 0, cardioTime: 0 })
@@ -303,12 +306,16 @@ export function WorkoutProvider({ children }) {
           // Migrate old "arms" muscle group data
           const migratedWorkouts = parsedData.workouts ? migrateWorkoutData(parsedData.workouts) : []
           
+          // Recalculate stats from workouts instead of using saved stats
+          // This ensures stats are always accurate even after bug fixes
+          const recalculatedStats = calculateStats(migratedWorkouts)
+          
           dispatch({ type: 'LOAD_DATA', payload: {
             workouts: migratedWorkouts,
             currentWorkout: parsedData.currentWorkout || null,
             goals: parsedData.goals || [],
             achievements: parsedData.achievements || [],
-            stats: parsedData.stats || initialState.stats
+            stats: recalculatedStats
           }})
         }
       }
