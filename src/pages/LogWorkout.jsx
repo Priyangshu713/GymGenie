@@ -3,7 +3,7 @@ import { useWorkout } from '../context/WorkoutContext'
 import AppleDropdown from '../components/AppleDropdown'
 import AISmartTip from '../components/AISmartTip'
 import { Plus, Trash2, Play, Square, Save, X, Dumbbell, Timer, Target, Search } from 'lucide-react'
-import { exerciseDatabase, getMuscleGroups, getExercisesForMuscleGroup, isBodyweightExercise, searchExercises } from '../data/exercises'
+import { exerciseDatabase, getMuscleGroups, getExercisesForMuscleGroup, isBodyweightExercise, isTimeBasedExercise, searchExercises } from '../data/exercises'
 import { suggestNextExercise, getFormTip, generateQuickSummary } from '../services/contextualAI'
 
 const LogWorkout = () => {
@@ -74,14 +74,31 @@ const LogWorkout = () => {
 
   const handleAddSet = (exerciseId) => {
     const exercise = currentWorkout.exercises.find(ex => ex.id === exerciseId)
-    const set = exercise?.type === 'strength'
-      ? {
-        reps: 0,
-        weight: 0,
-        difficulty: 0,
-        isBodyweight: isBodyweightExercise(exercise.name)
+    
+    let set
+    if (exercise?.type === 'strength') {
+      // Check if this is a time-based exercise
+      if (isTimeBasedExercise(exercise.name)) {
+        set = {
+          duration: 0, // Time in seconds
+          weight: 0,
+          difficulty: 0,
+          isBodyweight: isBodyweightExercise(exercise.name),
+          isTimeBased: true
+        }
+      } else {
+        set = {
+          reps: 0,
+          weight: 0,
+          difficulty: 0,
+          isBodyweight: isBodyweightExercise(exercise.name)
+        }
       }
-      : { duration: 0, distance: 0, timing: 'after', intensity: 'slow' }
+    } else {
+      // Cardio exercises
+      set = { duration: 0, distance: 0, timing: 'after', intensity: 'slow' }
+    }
+    
     addSet(exerciseId, set)
 
     // Track when "Add Set" is clicked - update timestamp immediately
@@ -545,6 +562,17 @@ const LogWorkout = () => {
   )
 }
 
+// Helper function to format seconds for display
+const formatDurationForDisplay = (seconds) => {
+  if (!seconds || seconds === 0) return '0'
+  if (seconds < 60) return seconds.toString()
+  
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  if (secs === 0) return `${mins}m`
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
 // Utility function to get exercise history
 const getExerciseHistory = (exerciseName, workouts) => {
   // Filter workouts that contain this exercise
@@ -558,6 +586,46 @@ const getExerciseHistory = (exerciseName, workouts) => {
     return { lastWorkout: null, pr: null }
   }
 
+  // Get user's bodyweight for calculations
+  const getUserBodyweight = () => {
+    const saved = localStorage.getItem('gymgenie-measurements')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      // Ensure we get a number, not a string
+      return parseFloat(parsed.weight) || 0
+    }
+    return 0
+  }
+  const userBodyweight = getUserBodyweight()
+
+  // Helper function to calculate effective weight for a set
+  const getEffectiveWeight = (set) => {
+    if (set.isBodyweight) {
+      // For bodyweight exercises: bodyweight + additional weight
+      const additionalWeight = parseFloat(set.weight) || 0
+      return userBodyweight + additionalWeight
+    } else {
+      // For regular exercises: just the weight
+      return parseFloat(set.weight) || 0
+    }
+  }
+
+  // Helper function to check if a set is completed
+  const isSetCompleted = (set) => {
+    // For time-based exercises, check duration instead of reps
+    if (set.isTimeBased || set.duration !== undefined) {
+      return set.duration > 0 && (
+        (set.weight !== undefined && set.weight !== '' && set.weight > 0) || 
+        set.isBodyweight === true
+      )
+    }
+    // For rep-based exercises
+    return set.reps > 0 && (
+      (set.weight !== undefined && set.weight !== '' && set.weight > 0) || 
+      set.isBodyweight === true
+    )
+  }
+
   // Get last workout data (most recent)
   const lastWorkout = relevantWorkouts[0]
   const lastExercise = lastWorkout.exercises.find(
@@ -567,34 +635,96 @@ const getExerciseHistory = (exerciseName, workouts) => {
   // Calculate last workout stats
   let lastWorkoutData = null
   if (lastExercise && lastExercise.sets.length > 0) {
-    const lastSet = lastExercise.sets[lastExercise.sets.length - 1]
-    lastWorkoutData = {
-      date: lastWorkout.date,
-      weight: lastSet.weight || 0,
-      reps: lastSet.reps || 0,
-      difficulty: lastSet.difficulty || 0
+    // Find the best set from the last workout (highest weight or volume)
+    const completedSets = lastExercise.sets.filter(isSetCompleted)
+    if (completedSets.length > 0) {
+      const bestSet = completedSets.reduce((best, current) => {
+        const bestWeight = getEffectiveWeight(best)
+        const currentWeight = getEffectiveWeight(current)
+        
+        // Calculate volume based on exercise type
+        const bestVolume = bestWeight * (best.isTimeBased || best.duration !== undefined ? (best.duration || 0) : (best.reps || 0))
+        const currentVolume = currentWeight * (current.isTimeBased || current.duration !== undefined ? (current.duration || 0) : (current.reps || 0))
+        
+        // Prioritize higher weight, then higher volume
+        if (currentWeight > bestWeight) return current
+        if (currentWeight === bestWeight && currentVolume > bestVolume) return current
+        return best
+      })
+
+      lastWorkoutData = {
+        date: lastWorkout.date,
+        weight: getEffectiveWeight(bestSet),
+        reps: bestSet.reps || 0,
+        duration: bestSet.duration || 0,
+        difficulty: bestSet.difficulty || 0,
+        isBodyweight: bestSet.isBodyweight || false,
+        isTimeBased: bestSet.isTimeBased || false
+      }
     }
   }
 
-  // Calculate PR (Personal Record) - highest weight lifted
+  // Calculate PR (Personal Record) - highest weight or volume
   let pr = null
+  
+  // Collect all completed sets from all workouts
+  const allSets = []
   relevantWorkouts.forEach(workout => {
     const exercise = workout.exercises.find(
       ex => ex.name.toLowerCase() === exerciseName.toLowerCase()
     )
     if (exercise && exercise.sets) {
       exercise.sets.forEach(set => {
-        if (set.weight && (!pr || set.weight > pr.weight)) {
-          pr = {
-            date: workout.date,
-            weight: set.weight,
-            reps: set.reps || 0,
-            difficulty: set.difficulty || 0
-          }
+        if (isSetCompleted(set)) {
+          allSets.push({
+            ...set,
+            workoutDate: workout.date
+          })
         }
       })
     }
   })
+  
+  // Find the true best set across all workouts
+  if (allSets.length > 0) {
+    const bestSet = allSets.reduce((best, current) => {
+      const bestWeight = getEffectiveWeight(best)
+      const currentWeight = getEffectiveWeight(current)
+      
+      // Calculate volume based on exercise type
+      const bestVolume = bestWeight * (best.isTimeBased || best.duration !== undefined ? (best.duration || 0) : (best.reps || 0))
+      const currentVolume = currentWeight * (current.isTimeBased || current.duration !== undefined ? (current.duration || 0) : (current.reps || 0))
+      
+      // Debug logging for PR calculation
+      console.log(`PR Comparison for ${exerciseName}:`, {
+        current: { weight: currentWeight, volume: currentVolume, reps: current.reps || 0, date: current.workoutDate },
+        best: { weight: bestWeight, volume: bestVolume, reps: best.reps || 0, date: best.workoutDate }
+      })
+      
+      // Prioritize higher weight first, then higher volume (for same weight, higher reps/duration wins)
+      if (currentWeight > bestWeight) {
+        console.log('Current wins by weight')
+        return current
+      }
+      if (currentWeight === bestWeight && currentVolume > bestVolume) {
+        console.log('Current wins by volume')
+        return current
+      }
+      console.log('Best remains')
+      return best
+    })
+    
+    pr = {
+      date: bestSet.workoutDate,
+      weight: getEffectiveWeight(bestSet), // This is the effective weight (already calculated)
+      originalWeight: bestSet.weight || 0, // Store original weight for reference
+      reps: bestSet.reps || 0,
+      duration: bestSet.duration || 0,
+      difficulty: bestSet.difficulty || 0,
+      isBodyweight: bestSet.isBodyweight || false,
+      isTimeBased: bestSet.isTimeBased || false
+    }
+  }
 
   return { lastWorkout: lastWorkoutData, pr }
 }
@@ -639,8 +769,8 @@ const ExerciseCard = ({ exercise, index, onAddSet, onUpdateSet, onDeleteSet }) =
                 </span>
               </div>
               <span className="text-xs text-gray-400">
-                {history.lastWorkout && `Last: ${history.lastWorkout.weight}kg`}
-                {history.pr && ` • PR: ${history.pr.weight}kg`}
+                {history.lastWorkout && `Last: ${history.lastWorkout.isBodyweight ? history.lastWorkout.weight + 'kg (BW)' : history.lastWorkout.weight + 'kg'}`}
+                {history.pr && ` • PR: ${history.pr.isBodyweight ? history.pr.weight + 'kg (BW)' : history.pr.weight + 'kg'}`}
               </span>
             </div>
           </button>
@@ -661,13 +791,19 @@ const ExerciseCard = ({ exercise, index, onAddSet, onUpdateSet, onDeleteSet }) =
                       <div className="text-lg font-bold text-white">
                         {history.lastWorkout.weight}
                       </div>
-                      <div className="text-xs text-gray-400">kg</div>
+                      <div className="text-xs text-gray-400">
+                        {history.lastWorkout.isBodyweight ? 'kg (BW)' : 'kg'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-lg font-bold text-white">
-                        {history.lastWorkout.reps}
+                        {history.lastWorkout.isTimeBased || history.lastWorkout.duration > 0 
+                          ? formatDurationForDisplay(history.lastWorkout.duration)
+                          : history.lastWorkout.reps}
                       </div>
-                      <div className="text-xs text-gray-400">reps</div>
+                      <div className="text-xs text-gray-400">
+                        {history.lastWorkout.isTimeBased || history.lastWorkout.duration > 0 ? 'time' : 'reps'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-lg font-bold text-white">
@@ -693,13 +829,19 @@ const ExerciseCard = ({ exercise, index, onAddSet, onUpdateSet, onDeleteSet }) =
                       <div className="text-lg font-bold text-yellow-400">
                         {history.pr.weight}
                       </div>
-                      <div className="text-xs text-gray-400">kg</div>
+                      <div className="text-xs text-gray-400">
+                        {history.pr.isBodyweight ? 'kg (BW)' : 'kg'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-lg font-bold text-yellow-400">
-                        {history.pr.reps}
+                        {history.pr.isTimeBased || history.pr.duration > 0 
+                          ? formatDurationForDisplay(history.pr.duration)
+                          : history.pr.reps}
                       </div>
-                      <div className="text-xs text-gray-400">reps</div>
+                      <div className="text-xs text-gray-400">
+                        {history.pr.isTimeBased || history.pr.duration > 0 ? 'time' : 'reps'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-lg font-bold text-yellow-400">
@@ -748,8 +890,34 @@ const SetRow = ({ set, setIndex, exerciseType, exerciseName, onUpdate, onDelete 
   const [additionalWeight, setAdditionalWeight] = useState(0)
   const [bodyweight, setBodyweight] = useState(() => {
     const saved = localStorage.getItem('gymgenie-measurements')
-    return saved ? JSON.parse(saved).weight || 0 : 0
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      return parseFloat(parsed.weight) || 0
+    }
+    return 0
   })
+
+  // Helper functions for time input
+  const formatSecondsToTime = (seconds) => {
+    if (!seconds || seconds === 0) return ''
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    if (mins === 0) return secs.toString()
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const parseTimeToSeconds = (timeStr) => {
+    if (!timeStr) return 0
+    
+    // Handle MM:SS format (e.g., "2:30" = 150 seconds)
+    if (timeStr.includes(':')) {
+      const [mins, secs] = timeStr.split(':').map(num => parseInt(num) || 0)
+      return (mins * 60) + secs
+    }
+    
+    // Handle plain seconds (e.g., "90" = 90 seconds)
+    return parseInt(timeStr) || 0
+  }
 
   const handleBodyweightToggle = () => {
     if (canBeBodyweight) {
@@ -805,13 +973,31 @@ const SetRow = ({ set, setIndex, exerciseType, exerciseName, onUpdate, onDelete 
       {exerciseType === 'strength' ? (
         <div className="flex items-center space-x-3">
           <div className="flex-1">
-            <input
-              type="number"
-              placeholder="Reps"
-              value={set.reps || ''}
-              onChange={(e) => onUpdate({ reps: parseInt(e.target.value) || 0 })}
-              className="fitness-input text-sm"
-            />
+            {set.isTimeBased || isTimeBasedExercise(exerciseName) ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="2:30 or 150"
+                  value={formatSecondsToTime(set.duration)}
+                  onChange={(e) => {
+                    const seconds = parseTimeToSeconds(e.target.value)
+                    onUpdate({ duration: seconds })
+                  }}
+                  className="fitness-input text-sm pr-12"
+                />
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">
+                  {set.duration > 0 && set.duration >= 60 ? 'min' : 'sec'}
+                </div>
+              </div>
+            ) : (
+              <input
+                type="number"
+                placeholder="Reps"
+                value={set.reps || ''}
+                onChange={(e) => onUpdate({ reps: parseInt(e.target.value) || 0 })}
+                className="fitness-input text-sm"
+              />
+            )}
           </div>
           <div className="flex-1">
             <div className="relative">
