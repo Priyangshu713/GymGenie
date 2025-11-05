@@ -1070,6 +1070,55 @@ export const isBodyweightExercise = (exerciseName) => {
   return bodyweightExercises.includes(exerciseName)
 }
 
+// List of exercises that are time-based (duration) rather than rep-based
+export const timeBasedExercises = [
+  // Planks and holds
+  'Plank',
+  'Side Plank',
+  'Weighted Plank',
+  'Decline Plank',
+  'Incline Plank',
+  'TRX Plank',
+  'BOSU Ball Plank',
+  'Stability Ball Plank',
+  'Single-Arm Plank',
+  'Single-Leg Plank',
+  'Hollow Body Hold',
+  'Superman Holds',
+  'L-Sits',
+  'Anti-Rotation Hold',
+  
+  // Dead hangs and grip holds
+  'Dead Hangs',
+  'Weighted Dead Hangs',
+  'Towel Dead Hangs',
+  'Fat Grip Dead Hangs',
+  'Pinch Grip Holds',
+  
+  // Wall sits and static holds
+  'Wall Sits',
+  
+  // Other time-based exercises
+  'Bear Crawls',
+  'Crab Walks',
+  'Farmer\'s Walk',
+  'Single-Arm Farmer\'s Walk',
+  'Suitcase Carry',
+  'Overhead Carry',
+  'Front-Loaded Carry',
+  'Mixed Carry',
+  'Yoke Walk',
+  'Sandbag Carry'
+]
+
+// Check if an exercise is time-based (duration) rather than rep-based
+export const isTimeBasedExercise = (exerciseName) => {
+  return timeBasedExercises.some(exercise => 
+    exerciseName.toLowerCase().includes(exercise.toLowerCase()) ||
+    exercise.toLowerCase().includes(exerciseName.toLowerCase())
+  )
+}
+
 // Get total number of exercises
 export const getTotalExerciseCount = () => {
   return Object.values(exerciseDatabase).reduce((total, exercises) => total + exercises.length, 0)
