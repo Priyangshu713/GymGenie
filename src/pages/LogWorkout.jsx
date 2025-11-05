@@ -545,7 +545,67 @@ const LogWorkout = () => {
   )
 }
 
+// Utility function to get exercise history
+const getExerciseHistory = (exerciseName, workouts) => {
+  // Filter workouts that contain this exercise
+  const relevantWorkouts = workouts
+    .filter(workout => 
+      workout.exercises.some(ex => ex.name.toLowerCase() === exerciseName.toLowerCase())
+    )
+    .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date, newest first
+
+  if (relevantWorkouts.length === 0) {
+    return { lastWorkout: null, pr: null }
+  }
+
+  // Get last workout data (most recent)
+  const lastWorkout = relevantWorkouts[0]
+  const lastExercise = lastWorkout.exercises.find(
+    ex => ex.name.toLowerCase() === exerciseName.toLowerCase()
+  )
+
+  // Calculate last workout stats
+  let lastWorkoutData = null
+  if (lastExercise && lastExercise.sets.length > 0) {
+    const lastSet = lastExercise.sets[lastExercise.sets.length - 1]
+    lastWorkoutData = {
+      date: lastWorkout.date,
+      weight: lastSet.weight || 0,
+      reps: lastSet.reps || 0,
+      difficulty: lastSet.difficulty || 0
+    }
+  }
+
+  // Calculate PR (Personal Record) - highest weight lifted
+  let pr = null
+  relevantWorkouts.forEach(workout => {
+    const exercise = workout.exercises.find(
+      ex => ex.name.toLowerCase() === exerciseName.toLowerCase()
+    )
+    if (exercise && exercise.sets) {
+      exercise.sets.forEach(set => {
+        if (set.weight && (!pr || set.weight > pr.weight)) {
+          pr = {
+            date: workout.date,
+            weight: set.weight,
+            reps: set.reps || 0,
+            difficulty: set.difficulty || 0
+          }
+        }
+      })
+    }
+  })
+
+  return { lastWorkout: lastWorkoutData, pr }
+}
+
 const ExerciseCard = ({ exercise, index, onAddSet, onUpdateSet, onDeleteSet }) => {
+  const { workouts } = useWorkout()
+  const [showHistory, setShowHistory] = useState(false)
+  
+  // Get exercise history
+  const history = getExerciseHistory(exercise.name, workouts)
+
   return (
     <div className="fitness-card">
       <div className="flex items-center justify-between mb-4">
@@ -563,6 +623,97 @@ const ExerciseCard = ({ exercise, index, onAddSet, onUpdateSet, onDeleteSet }) =
           </span>
         </div>
       </div>
+
+      {/* Exercise History - Last Workout & PR */}
+      {(history.lastWorkout || history.pr) && (
+        <div className="mb-4">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="w-full text-left p-3 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-xl border border-purple-500/30 hover:border-purple-500/50 transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Target size={16} className="text-purple-400" />
+                <span className="text-sm font-medium text-purple-300">
+                  {showHistory ? 'Hide' : 'Show'} History
+                </span>
+              </div>
+              <span className="text-xs text-gray-400">
+                {history.lastWorkout && `Last: ${history.lastWorkout.weight}kg`}
+                {history.pr && ` • PR: ${history.pr.weight}kg`}
+              </span>
+            </div>
+          </button>
+
+          {showHistory && (
+            <div className="mt-2 space-y-2">
+              {/* Last Workout */}
+              {history.lastWorkout && (
+                <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-blue-400">LAST WORKOUT</span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(history.lastWorkout.date).toLocaleDateString('en-GB')}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-lg font-bold text-white">
+                        {history.lastWorkout.weight}
+                      </div>
+                      <div className="text-xs text-gray-400">kg</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-white">
+                        {history.lastWorkout.reps}
+                      </div>
+                      <div className="text-xs text-gray-400">reps</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-white">
+                        {history.lastWorkout.difficulty || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">RPE</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Personal Record */}
+              {history.pr && (
+                <div className="p-3 bg-gradient-to-r from-yellow-900/20 to-orange-900/20 rounded-lg border border-yellow-500/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-yellow-400">🏆 PERSONAL RECORD</span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(history.pr.date).toLocaleDateString('en-GB')}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-lg font-bold text-yellow-400">
+                        {history.pr.weight}
+                      </div>
+                      <div className="text-xs text-gray-400">kg</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-yellow-400">
+                        {history.pr.reps}
+                      </div>
+                      <div className="text-xs text-gray-400">reps</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-yellow-400">
+                        {history.pr.difficulty || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">RPE</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sets */}
       <div className="space-y-2 mb-3">
